@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gray-50 text-gray-900 antialiased;
+  }
+  h1 {
+    @apply text-2xl font-bold tracking-tight;
+  }
+  h2 {
+    @apply text-lg font-semibold;
+  }
+  a {
+    @apply text-emerald-700 hover:text-emerald-800;
+  }
+}
+
+@layer components {
+  /* Buttons */
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold transition
+           disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply bg-emerald-500 text-emerald-950 hover:bg-emerald-400;
+  }
+  .btn-blue {
+    @apply bg-blue-600 text-white hover:bg-blue-500;
+  }
+  .btn-ghost {
+    @apply border border-gray-300 bg-white text-gray-700 hover:bg-gray-50;
+  }
+  .btn-danger {
+    @apply border border-red-200 bg-red-50 text-red-700 hover:bg-red-100;
+  }
+  .btn-sm {
+    @apply px-2.5 py-1.5 text-xs;
+  }
+
+  /* Forms */
+  .label {
+    @apply mb-1 block text-sm font-medium text-gray-700;
+  }
+  .input {
+    @apply w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm
+           focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500;
+  }
+  .field-error {
+    @apply mt-1 text-sm text-red-600;
+  }
+
+  /* Surfaces */
+  .card {
+    @apply rounded-xl border border-gray-200 bg-white p-5 shadow-sm;
+  }
+  .badge {
+    @apply inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium capitalize text-gray-700;
+  }
+  .badge-emerald {
+    @apply bg-emerald-100 text-emerald-800;
+  }
+  .badge-blue {
+    @apply bg-blue-100 text-blue-800;
+  }
+  .badge-amber {
+    @apply bg-amber-100 text-amber-800;
+  }
+}
