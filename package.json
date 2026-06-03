@@ -1,0 +1,14 @@
+{
+  "name": "laravel-project-monorepo",
+  "private": true,
+  "description": "Nuxt 3 (web) + Laravel 11 (api) monorepo",
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,green \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:api": "php api/artisan serve --port=8000",
+    "dev:web": "npm --prefix web run dev",
+    "install:all": "composer install --working-dir=api && npm --prefix web install"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}

@@ -1,0 +1,7 @@
+# Root-level monorepo ignores. Each app (api/, web/) has its own .gitignore too.
+node_modules
+.DS_Store
+*.log
+.idea
+.fleet
+.vscode
