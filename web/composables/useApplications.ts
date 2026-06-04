@@ -1,6 +1,3 @@
-/**
- * API helpers for the incentive-application multi-step wizard.
- */
 export function useApplications() {
   const api = useApi()
 
@@ -32,15 +29,12 @@ export function useApplications() {
   }
 }
 
-/** All application statuses (for filters). */
 export const APPLICATION_STATUSES = [
   'started', 'in_progress', 'submitted', 'under_review', 'reserved', 'paid', 'rejected', 'withdrawn',
 ] as const
 
-/** Sort columns the applications index whitelists (must match the API). */
 export const APPLICATION_SORTABLE = ['status', 'submitted_at', 'created_at', 'updated_at'] as const
 
-/** Mirror of the server-side application status graph: from → { to: [roles] }. */
 export const APPLICATION_TRANSITIONS: Record<string, Record<string, string[]>> = {
   started: { in_progress: ['contractor', 'customer'], withdrawn: ['customer', 'contractor'] },
   in_progress: { submitted: ['contractor', 'customer'], withdrawn: ['customer', 'contractor'] },
@@ -52,7 +46,6 @@ export const APPLICATION_TRANSITIONS: Record<string, Record<string, string[]>> =
   withdrawn: {},
 }
 
-/** Strip Laravel's `data.` prefix from step validation error keys. */
 export function fieldErrors(e: any): Record<string, string> {
   const out: Record<string, string> = {}
   const errors = e?.data?.errors ?? {}

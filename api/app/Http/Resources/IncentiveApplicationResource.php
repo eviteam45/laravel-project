@@ -6,9 +6,6 @@ use App\Models\IncentiveApplication;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-/**
- * @mixin IncentiveApplication
- */
 class IncentiveApplicationResource extends JsonResource
 {
     public function toArray(Request $request): array
@@ -23,7 +20,6 @@ class IncentiveApplicationResource extends JsonResource
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
 
-            // Ordered list of step keys for the wizard.
             'step_keys' => IncentiveApplication::STEP_KEYS,
 
             'steps' => ApplicationStepResource::collection($this->whenLoaded('steps')),

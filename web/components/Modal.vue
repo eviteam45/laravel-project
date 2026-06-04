@@ -25,13 +25,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
         v-if="open"
         class="fixed inset-0 z-50 flex items-center justify-center p-4"
       >
-        <!-- Backdrop -->
         <div
           class="absolute inset-0 bg-gray-900/40 backdrop-blur-sm"
           @click="close"
         />
 
-        <!-- Panel -->
         <div class="relative z-10 max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-6 shadow-xl">
           <div class="mb-4 flex items-center justify-between">
             <h2 v-if="title">

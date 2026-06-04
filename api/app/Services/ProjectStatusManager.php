@@ -6,11 +6,6 @@ use App\Models\Project;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 
-/**
- * Project workflow:
- *   draft → submitted → in_review → approved → installed → closed
- *   (+ rejected from in_review)
- */
 class ProjectStatusManager extends StatusTransitionManager
 {
     public function graph(): array
@@ -31,8 +26,15 @@ class ProjectStatusManager extends StatusTransitionManager
 
     protected function ownerCheck(Model $subject, User $actor): bool
     {
-        /** @var Project $subject */
+
         return ($actor->contractor && $subject->contractor_id === $actor->contractor->id)
             || ($actor->customer && $subject->customer_id === $actor->customer->id);
+    }
+
+    protected function sideEffects(Model $subject, string $from, string $to, User $actor, array $context): void
+    {
+        if ($subject instanceof Project) {
+            app(TransitionNotifier::class)->notifyProjectTransition($subject, $from, $to, $actor->id);
+        }
     }
 }

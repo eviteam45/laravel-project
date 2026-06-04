@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\HandlesIndexQueries;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreProjectRequest;
 use App\Http\Requests\UpdateProjectRequest;
@@ -11,85 +12,70 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Validation\ValidationException;
+use OpenApi\Attributes as OA;
 
 class ProjectController extends Controller
 {
-    /** Columns that may be sorted on. */
-    private const SORTABLE = ['name', 'status', 'capacity_kw', 'install_date', 'created_at'];
+    use HandlesIndexQueries;
 
-    /**
-     * Filterable, sortable, paginated index — scoped to the current user.
-     */
+    #[OA\Get(
+        path: '/projects',
+        tags: ['Projects'],
+        summary: 'List projects (role-scoped, filterable, sortable, paginated)',
+        security: [['bearerAuth' => []]],
+        parameters: [
+            new OA\Parameter(name: 'status', in: 'query', description: 'CSV of statuses', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'region', in: 'query', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'contractor_id', in: 'query', schema: new OA\Schema(type: 'integer')),
+            new OA\Parameter(name: 'customer_id', in: 'query', schema: new OA\Schema(type: 'integer')),
+            new OA\Parameter(name: 'has_application', in: 'query', schema: new OA\Schema(type: 'boolean')),
+            new OA\Parameter(name: 'search', in: 'query', description: 'name + address', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'sort', in: 'query', schema: new OA\Schema(type: 'string', enum: Project::SORTABLE)),
+            new OA\Parameter(name: 'dir', in: 'query', schema: new OA\Schema(type: 'string', enum: ['asc', 'desc'])),
+            new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer')),
+            new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer')),
+        ],
+        responses: [new OA\Response(response: 200, description: 'Paginated project list')]
+    )]
     public function index(Request $request): AnonymousResourceCollection
     {
-
         $this->authorize('viewAny', Project::class);
 
-        $user = $request->user();
-
         $projects = Project::query()
-            ->visibleTo($user)
+            ->visibleTo($request->user())
             ->with(['contractor:id,company_name', 'customer:id,full_name'])
             ->withCount('batterySystems')
-            // status=draft,completed  → whereIn
-            ->when($request->filled('status'), function ($q) use ($request) {
-                $q->whereIn('status', array_filter(explode(',', (string) $request->query('status'))));
-            })
-            ->when($request->filled('contractor_id'), function ($q) use ($request) {
-                return $q->where('contractor_id', $request->integer('contractor_id'));
-            })
-            ->when($request->filled('customer_id'), function ($q) use ($request) {
-                return $q->where('customer_id', $request->integer('customer_id'));
-            })
-            // region lives on the contractor — filter through the relation
-            ->when($request->filled('region'), function ($q) use ($request) {
-                $q->whereHas('contractor', fn ($c) => $c->where('region', $request->query('region')));
-            })
-            // free-text search across name + address
-            ->when($request->filled('search'), function ($q) use ($request) {
-                $term = '%'.$request->query('search').'%';
-                $q->where(function ($sub) use ($term) {
-                    return $sub->where('name', 'like', $term)->orWhere('address', 'like', $term);
-                });
-            })
-            ->when($request->filled('min_capacity'), function ($q) use ($request) {
-                return $q->where('capacity_kw', '>=', $request->float('min_capacity'));
-            })
-            ->when($request->filled('max_capacity'), function ($q) use ($request) {
-                return $q->where('capacity_kw', '<=', $request->float('max_capacity'));
-            })
-            ->when($request->filled('install_from'), function ($q) use ($request) {
-                return $q->whereDate('install_date', '>=', $request->date('install_from'));
-            })
-            ->when($request->filled('install_to'), function ($q) use ($request) {
-                return $q->whereDate('install_date', '<=', $request->date('install_to'));
-            })
-            // has_application=1 / has_application=0
-            ->when($request->has('has_application'), function ($q) use ($request) {
-                $request->boolean('has_application')
-                    ? $q->whereHas('application')
-                    : $q->whereDoesntHave('application');
-            });
+            ->filter($request);
 
-        // Whitelisted sorting, newest first by default, with a stable id tiebreaker
-        // so pages stay deterministic when the sort column has duplicate values.
-        $sort = in_array($request->query('sort'), self::SORTABLE, true) ? $request->query('sort') : 'created_at';
-        $dir = $request->query('dir') === 'asc' ? 'asc' : 'desc';
-        $projects->orderBy($sort, $dir)->orderBy('id', $dir);
-
-        $perPage = min(max((int) $request->query('per_page', 15), 1), 100);
-
-        return ProjectResource::collection(
-            $projects->paginate($perPage)->withQueryString()
-        );
+        return ProjectResource::collection($this->paginated($projects, $request, Project::SORTABLE));
     }
 
+    #[OA\Post(
+        path: '/projects',
+        tags: ['Projects'],
+        summary: 'Create a project (contractor owns it; admin passes contractor_id)',
+        security: [['bearerAuth' => []]],
+        requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(
+            required: ['name', 'customer_id'],
+            properties: [
+                new OA\Property(property: 'name', type: 'string'),
+                new OA\Property(property: 'customer_id', type: 'integer'),
+                new OA\Property(property: 'contractor_id', type: 'integer', description: 'required for admins'),
+                new OA\Property(property: 'address', type: 'string'),
+                new OA\Property(property: 'capacity_kw', type: 'number'),
+                new OA\Property(property: 'install_date', type: 'string', format: 'date'),
+            ]
+        )),
+        responses: [
+            new OA\Response(response: 201, description: 'Created'),
+            new OA\Response(response: 422, description: 'Validation error'),
+        ]
+    )]
     public function store(StoreProjectRequest $request): ProjectResource
     {
         $data = $request->validated();
         $user = $request->user();
 
-        // Contractors create under their own profile; an admin must name one.
         $contractorId = $user->contractor?->id ?? ($data['contractor_id'] ?? null);
 
         if (! $contractorId) {
@@ -107,6 +93,17 @@ class ProjectController extends Controller
         );
     }
 
+    #[OA\Get(
+        path: '/projects/{project}',
+        tags: ['Projects'],
+        summary: 'Show a project with battery systems, documents and application',
+        security: [['bearerAuth' => []]],
+        parameters: [new OA\Parameter(name: 'project', in: 'path', required: true, schema: new OA\Schema(type: 'integer'))],
+        responses: [
+            new OA\Response(response: 200, description: 'Project'),
+            new OA\Response(response: 403, description: 'Forbidden'),
+        ]
+    )]
     public function show(Project $project): ProjectResource
     {
         $this->authorize('view', $project);
@@ -122,6 +119,21 @@ class ProjectController extends Controller
         );
     }
 
+    #[OA\Put(
+        path: '/projects/{project}',
+        tags: ['Projects'],
+        summary: 'Update a project (status changes go through /transition)',
+        security: [['bearerAuth' => []]],
+        parameters: [new OA\Parameter(name: 'project', in: 'path', required: true, schema: new OA\Schema(type: 'integer'))],
+        requestBody: new OA\RequestBody(content: new OA\JsonContent(properties: [
+            new OA\Property(property: 'name', type: 'string'),
+            new OA\Property(property: 'customer_id', type: 'integer'),
+            new OA\Property(property: 'address', type: 'string'),
+            new OA\Property(property: 'capacity_kw', type: 'number'),
+            new OA\Property(property: 'install_date', type: 'string', format: 'date'),
+        ])),
+        responses: [new OA\Response(response: 200, description: 'Updated')]
+    )]
     public function update(UpdateProjectRequest $request, Project $project): ProjectResource
     {
         $this->authorize('update', $project);
@@ -133,12 +145,22 @@ class ProjectController extends Controller
         );
     }
 
+    #[OA\Delete(
+        path: '/projects/{project}',
+        tags: ['Projects'],
+        summary: 'Delete a project (blocked once its application is in review/funded)',
+        security: [['bearerAuth' => []]],
+        parameters: [new OA\Parameter(name: 'project', in: 'path', required: true, schema: new OA\Schema(type: 'integer'))],
+        responses: [
+            new OA\Response(response: 200, description: 'Deleted'),
+            new OA\Response(response: 422, description: 'Has an active application'),
+        ]
+    )]
     public function destroy(Project $project): JsonResponse
     {
         $this->authorize('delete', $project);
 
-        // Don't delete a project whose application is in review or funded.
-        if ($project->application()->whereIn('status', ['submitted', 'under_review', 'reserved', 'paid'])->exists()) {
+        if ($project->hasLockedApplication()) {
             throw ValidationException::withMessages([
                 'project' => ['Cannot delete a project with an application under review or funded.'],
             ]);

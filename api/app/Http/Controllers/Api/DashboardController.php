@@ -12,12 +12,17 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use OpenApi\Attributes as OA;
 
 class DashboardController extends Controller
 {
-    /**
-     * Role-scoped aggregate stats for the dashboard.
-     */
+    #[OA\Get(
+        path: '/dashboard/stats',
+        tags: ['Dashboard'],
+        summary: 'Role-scoped aggregate stats (grouped counts + totals)',
+        security: [['bearerAuth' => []]],
+        responses: [new OA\Response(response: 200, description: 'Stats object')]
+    )]
     public function stats(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -25,7 +30,6 @@ class DashboardController extends Controller
         $projects = Project::query()->visibleTo($user);
         $applications = IncentiveApplication::query()->visibleTo($user);
 
-        // Payments belonging to visible applications.
         $payments = IncentivePayment::query()
             ->whereHas('application', fn (Builder $q) => $q->visibleTo($user));
 
@@ -57,11 +61,6 @@ class DashboardController extends Controller
         ]);
     }
 
-    /**
-     * Count rows grouped by status, filling missing statuses with 0.
-     *
-     * @param  list<string>  $statuses
-     */
     private function countByStatus(Builder $query, array $statuses): array
     {
         $counts = (clone $query)

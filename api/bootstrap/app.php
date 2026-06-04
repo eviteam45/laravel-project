@@ -11,13 +11,9 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
-    ->withMiddleware(function (Middleware $middleware) {
-        //
-    })
+    ->withMiddleware(function (Middleware $middleware) {})
     ->withExceptions(function (Exceptions $exceptions) {
-        // Always return the JSON error envelope for API routes, regardless of
-        // the client's Accept header (consistent {message, errors} shape;
-        // stack traces are only included when APP_DEBUG=true).
+
         $exceptions->shouldRenderJsonWhen(
             fn ($request, $throwable) => $request->is('api/*') || $request->expectsJson()
         );

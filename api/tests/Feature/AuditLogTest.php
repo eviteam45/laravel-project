@@ -18,7 +18,7 @@ class AuditLogTest extends TestCase
         $application = IncentiveApplication::factory()->create(['status' => 'submitted']);
 
         Sanctum::actingAs($admin);
-        // Generate an audit entry through a real transition.
+
         $this->postJson("/api/applications/{$application->id}/transition", ['to' => 'under_review'])->assertOk();
 
         $this->getJson('/api/audit-logs')

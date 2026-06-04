@@ -11,8 +11,8 @@ return new class extends Migration
         Schema::create('audit_logs', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
-            $table->string('action'); // created | updated | deleted | status_changed ...
-            // Polymorphic subject of the change.
+            $table->string('action');
+
             $table->nullableMorphs('subject');
             $table->json('changes')->nullable();
             $table->timestamps();

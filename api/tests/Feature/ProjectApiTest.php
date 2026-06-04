@@ -26,7 +26,7 @@ class ProjectApiTest extends TestCase
     {
         [$user, $contractor] = $this->contractorUser();
         Project::factory(2)->for($contractor)->create();
-        Project::factory(3)->create(); // other contractors' projects
+        Project::factory(3)->create();
 
         Sanctum::actingAs($user);
 
@@ -70,7 +70,6 @@ class ProjectApiTest extends TestCase
 
         $response->assertCreated()->assertJsonPath('data.name', 'New Install');
 
-        // contractor_id is forced to the authenticated contractor, ignoring any input.
         $this->assertDatabaseHas('projects', [
             'name' => 'New Install',
             'contractor_id' => $contractor->id,
@@ -94,7 +93,7 @@ class ProjectApiTest extends TestCase
     public function test_a_contractor_cannot_view_or_update_another_contractors_project(): void
     {
         [$user] = $this->contractorUser();
-        $other = Project::factory()->create(); // belongs to a different contractor
+        $other = Project::factory()->create();
 
         Sanctum::actingAs($user);
 
@@ -110,7 +109,6 @@ class ProjectApiTest extends TestCase
 
         Sanctum::actingAs($user);
 
-        // Status is no longer settable via update — only name/address/etc.
         $this->putJson("/api/projects/{$project->id}", ['name' => 'Renamed Project'])
             ->assertOk()
             ->assertJsonPath('data.name', 'Renamed Project')
@@ -192,7 +190,6 @@ class ProjectApiTest extends TestCase
             ->assertJsonPath('data.status', 'started')
             ->assertJsonPath('data.current_step', 'eligibility');
 
-        // Second attempt is rejected.
         $this->postJson('/api/applications', ['project_id' => $project->id])
             ->assertStatus(422)
             ->assertJsonValidationErrors('project_id');

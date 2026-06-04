@@ -5,7 +5,7 @@ interface ContractorOption {
 }
 
 const props = defineProps<{
-  modelValue: number | null
+  modelValue: number | null | undefined
   initialLabel?: string
 }>()
 

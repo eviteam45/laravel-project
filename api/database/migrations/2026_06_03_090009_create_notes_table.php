@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('notes', function (Blueprint $table) {
             $table->id();
-            // Polymorphic owner: any model (project, application, customer ...).
+
             $table->morphs('notable');
             $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
             $table->text('body');

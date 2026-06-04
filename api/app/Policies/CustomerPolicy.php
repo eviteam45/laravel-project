@@ -5,9 +5,6 @@ namespace App\Policies;
 use App\Models\Customer;
 use App\Models\User;
 
-/**
- * Customer records are managed by admins only.
- */
 class CustomerPolicy
 {
     public function viewAny(User $user): bool

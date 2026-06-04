@@ -6,7 +6,7 @@ interface CustomerOption {
 }
 
 const props = defineProps<{
-  modelValue: number | null
+  modelValue: number | null | undefined
   initialLabel?: string
 }>()
 
@@ -47,7 +47,6 @@ function runSearch() {
 }
 
 function onInput() {
-  // Typing invalidates the current selection until a new one is picked.
   emit('update:modelValue', null)
   runSearch()
 }
@@ -63,7 +62,6 @@ function select(c: CustomerOption) {
   open.value = false
 }
 
-// Close when clicking outside.
 const root = ref<HTMLElement | null>(null)
 function onDocClick(e: MouseEvent) {
   if (root.value && !root.value.contains(e.target as Node)) open.value = false

@@ -2,13 +2,9 @@
 
 namespace Database\Factories;
 
-use App\Models\ApplicationStep;
 use App\Models\IncentiveApplication;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
-/**
- * @extends Factory<ApplicationStep>
- */
 class ApplicationStepFactory extends Factory
 {
     public function definition(): array

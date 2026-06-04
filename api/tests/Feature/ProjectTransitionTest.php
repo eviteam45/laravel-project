@@ -53,7 +53,6 @@ class ProjectTransitionTest extends TestCase
     {
         Sanctum::actingAs($this->admin);
 
-        // draft → approved skips the workflow.
         $this->transition(['to' => 'approved'])
             ->assertStatus(422)
             ->assertJsonValidationErrors('to');
@@ -63,11 +62,9 @@ class ProjectTransitionTest extends TestCase
     {
         $this->project->update(['status' => 'in_review']);
 
-        // Contractor (owner) may not approve.
         Sanctum::actingAs($this->contractorUser);
         $this->transition(['to' => 'approved'])->assertForbidden();
 
-        // Admin may.
         Sanctum::actingAs($this->admin);
         $this->transition(['to' => 'approved'])
             ->assertOk()
@@ -81,5 +78,25 @@ class ProjectTransitionTest extends TestCase
 
         $this->postJson("/api/projects/{$other->id}/transition", ['to' => 'submitted'])
             ->assertForbidden();
+    }
+
+    public function test_a_project_transition_notifies_related_parties_except_the_actor(): void
+    {
+        $admin = User::factory()->admin()->create();
+        Sanctum::actingAs($this->contractorUser);
+
+        $this->transition(['to' => 'submitted'])->assertOk();
+
+        foreach ([$admin, $this->project->customer->user] as $user) {
+            $this->assertDatabaseHas('notifications', [
+                'user_id' => $user->id,
+                'type' => 'project_submitted',
+            ]);
+        }
+
+        $this->assertDatabaseMissing('notifications', [
+            'user_id' => $this->contractorUser->id,
+            'type' => 'project_submitted',
+        ]);
     }
 }

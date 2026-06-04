@@ -8,7 +8,7 @@ class StoreIncentiveApplicationRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        // The controller authorizes against the parent project.
+
         return true;
     }
 

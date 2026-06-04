@@ -8,9 +8,6 @@ interface ListParams {
   dir?: 'asc' | 'desc'
 }
 
-/**
- * Thin wrapper around the Projects + Applications API endpoints.
- */
 export function useProjects() {
   const api = useApi()
 
@@ -44,13 +41,10 @@ export const PROJECT_STATUSES = [
   'draft', 'submitted', 'in_review', 'approved', 'installed', 'closed', 'rejected',
 ] as const
 
-/** Common contractor regions (region filter lives on the contractor). */
 export const REGIONS = ['North', 'South', 'East', 'West', 'Central'] as const
 
-/** Sort columns the projects index whitelists (must match the API). */
 export const PROJECT_SORTABLE = ['name', 'status', 'capacity_kw', 'install_date', 'created_at'] as const
 
-/** Mirror of the server-side project status graph: from → { to: [roles] }. */
 export const PROJECT_TRANSITIONS: Record<string, Record<string, string[]>> = {
   draft: { submitted: ['contractor'] },
   submitted: { in_review: ['admin'] },
@@ -61,7 +55,6 @@ export const PROJECT_TRANSITIONS: Record<string, Record<string, string[]>> = {
   closed: {},
 }
 
-/** Destinations a given role may move to from `status` (admin may do any edge). */
 export function transitionsFor(
   graph: Record<string, Record<string, string[]>>,
   status: string | undefined,

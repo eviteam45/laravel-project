@@ -1,7 +1,6 @@
 <script setup lang="ts">
 const { isLoggedIn, user, logout, fetchUser } = useAuth()
 
-// Hydrate the user on first load if a token is present.
 await fetchUser()
 
 async function onLogout() {
@@ -36,6 +35,11 @@ async function onLogout() {
               to="/applications"
               class="rounded-md px-3 py-1.5 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
             >Applications</NuxtLink>
+            <NuxtLink
+              v-if="user?.role === 'admin'"
+              to="/users"
+              class="rounded-md px-3 py-1.5 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+            >Users</NuxtLink>
             <NuxtLink
               v-if="user?.role === 'admin'"
               to="/audit-logs"

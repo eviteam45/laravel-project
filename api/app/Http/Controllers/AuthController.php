@@ -2,40 +2,44 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\LoginRequest;
+use App\Http\Requests\RegisterRequest;
 use App\Http\Resources\UserResource;
-use App\Models\Contractor;
-use App\Models\Customer;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use OpenApi\Attributes as OA;
 
 class AuthController extends Controller
 {
-    /**
-     * Register a contractor or customer, create their profile, and issue a token.
-     *
-     * Self-registration cannot create admins — those are provisioned internally.
-     */
-    public function register(Request $request): JsonResponse
+    #[OA\Post(
+        path: '/register',
+        tags: ['Auth'],
+        summary: 'Register a contractor or customer',
+        requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(
+            required: ['name', 'email', 'password', 'password_confirmation', 'role'],
+            properties: [
+                new OA\Property(property: 'name', type: 'string'),
+                new OA\Property(property: 'email', type: 'string', format: 'email'),
+                new OA\Property(property: 'password', type: 'string', format: 'password', minLength: 8),
+                new OA\Property(property: 'password_confirmation', type: 'string', format: 'password'),
+                new OA\Property(property: 'role', type: 'string', enum: ['contractor', 'customer']),
+                new OA\Property(property: 'company_name', type: 'string', description: 'required when role=contractor'),
+                new OA\Property(property: 'phone', type: 'string'),
+                new OA\Property(property: 'address', type: 'string'),
+            ]
+        )),
+        responses: [
+            new OA\Response(response: 201, description: 'User created and token issued'),
+            new OA\Response(response: 422, description: 'Validation error'),
+        ]
+    )]
+    public function register(RegisterRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
-            'role' => ['required', Rule::in(['contractor', 'customer'])],
-            'phone' => ['nullable', 'string', 'max:50'],
-            // Contractor-only:
-            'company_name' => [Rule::requiredIf(fn () => $request->input('role') === 'contractor'), 'string', 'max:255'],
-            'license_no' => ['nullable', 'string', 'max:100'],
-            'region' => ['nullable', 'string', 'max:255'],
-            // Customer-only:
-            'full_name' => ['nullable', 'string', 'max:255'],
-            'address' => ['nullable', 'string', 'max:255'],
-        ]);
+        $validated = $request->validated();
 
         $user = DB::transaction(function () use ($validated) {
             $user = User::create([
@@ -73,15 +77,25 @@ class AuthController extends Controller
         ], 201);
     }
 
-    /**
-     * Authenticate a user and issue an API token.
-     */
-    public function login(Request $request): JsonResponse
+    #[OA\Post(
+        path: '/login',
+        tags: ['Auth'],
+        summary: 'Authenticate and receive a token',
+        requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(
+            required: ['email', 'password'],
+            properties: [
+                new OA\Property(property: 'email', type: 'string', format: 'email'),
+                new OA\Property(property: 'password', type: 'string', format: 'password'),
+            ]
+        )),
+        responses: [
+            new OA\Response(response: 200, description: 'Token issued'),
+            new OA\Response(response: 422, description: 'Invalid credentials'),
+        ]
+    )]
+    public function login(LoginRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'email' => ['required', 'string', 'email'],
-            'password' => ['required', 'string'],
-        ]);
+        $validated = $request->validated();
 
         $user = User::where('email', $validated['email'])->first();
 
@@ -101,17 +115,28 @@ class AuthController extends Controller
         ]);
     }
 
-    /**
-     * Return the currently authenticated user (top-level, unwrapped, for the SPA).
-     */
+    #[OA\Get(
+        path: '/user',
+        tags: ['Auth'],
+        summary: 'Current authenticated user',
+        security: [['bearerAuth' => []]],
+        responses: [
+            new OA\Response(response: 200, description: 'User object'),
+            new OA\Response(response: 401, description: 'Unauthenticated'),
+        ]
+    )]
     public function user(Request $request): JsonResponse
     {
         return response()->json(new UserResource($request->user()));
     }
 
-    /**
-     * Revoke the token used for the current request.
-     */
+    #[OA\Post(
+        path: '/logout',
+        tags: ['Auth'],
+        summary: 'Revoke the current token',
+        security: [['bearerAuth' => []]],
+        responses: [new OA\Response(response: 200, description: 'Logged out')]
+    )]
     public function logout(Request $request): JsonResponse
     {
         $request->user()->currentAccessToken()->delete();

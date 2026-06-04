@@ -15,7 +15,7 @@ return new class extends Migration
             $table->string('license_no')->nullable();
             $table->string('phone')->nullable();
             $table->string('region')->nullable();
-            $table->string('status')->default('active'); // active | inactive | pending
+            $table->string('status')->default('active');
             $table->timestamps();
 
             $table->index('region');

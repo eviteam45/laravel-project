@@ -4,10 +4,6 @@ namespace App\Support;
 
 use InvalidArgumentException;
 
-/**
- * Validation rules for each step of the incentive application wizard.
- * Keyed on the step's field names (validated under the request's `data.*`).
- */
 class ApplicationStepRules
 {
     public static function for(string $stepKey): array
@@ -24,7 +20,7 @@ class ApplicationStepRules
                 'quantity' => ['required', 'integer', 'min:1'],
                 'usable_capacity_kwh' => ['required', 'numeric', 'min:0'],
             ],
-            // Completion is gated on uploaded documents, not scalar fields.
+
             'documents' => [],
             'review' => [
                 'accepted_terms' => ['required', 'accepted'],

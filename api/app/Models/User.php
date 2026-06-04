@@ -2,25 +2,20 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
-use Database\Factories\UserFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Http\Request;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
-    /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, Notifiable;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var list<string>
-     */
     protected $fillable = [
         'name',
         'email',
@@ -30,21 +25,11 @@ class User extends Authenticatable
         'last_login_at',
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var list<string>
-     */
     protected $hidden = [
         'password',
         'remember_token',
     ];
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
     protected function casts(): array
     {
         return [
@@ -53,10 +38,6 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
-
-    // ---------------------------------------------------------------------
-    // Relationships
-    // ---------------------------------------------------------------------
 
     public function contractor(): HasOne
     {
@@ -68,12 +49,6 @@ class User extends Authenticatable
         return $this->hasOne(Customer::class);
     }
 
-    /**
-     * App notifications belonging to this user.
-     *
-     * Note: this overrides the Notifiable trait's polymorphic notifications()
-     * relation, since this app uses a simple per-user notifications table.
-     */
     public function notifications(): HasMany
     {
         return $this->hasMany(Notification::class);
@@ -107,5 +82,34 @@ class User extends Authenticatable
     public function isAdmin(): bool
     {
         return $this->role === 'admin';
+    }
+
+    public function scopeFilter(Builder $query, Request $request): Builder
+    {
+        return $query
+            ->when($request->filled('search'), function ($q) use ($request) {
+                $term = '%'.$request->query('search').'%';
+                $q->where(fn ($s) => $s->where('name', 'like', $term)->orWhere('email', 'like', $term));
+            })
+            ->when($request->filled('role'), fn ($q) => $q->where('role', $request->query('role')));
+    }
+
+    public function changeRole(string $role): void
+    {
+        DB::transaction(function () use ($role) {
+            $this->update(['role' => $role]);
+
+            if ($role === 'contractor' && ! $this->contractor) {
+                $this->contractor()->create([
+                    'company_name' => $this->name,
+                    'status' => 'active',
+                ]);
+            } elseif ($role === 'customer' && ! $this->customer) {
+                $this->customer()->create([
+                    'full_name' => $this->name,
+                    'account_email' => $this->email,
+                ]);
+            }
+        });
     }
 }

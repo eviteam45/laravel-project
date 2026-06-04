@@ -2,13 +2,9 @@
 
 namespace Database\Factories;
 
-use App\Models\BatterySystem;
 use App\Models\Project;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
-/**
- * @extends Factory<BatterySystem>
- */
 class BatterySystemFactory extends Factory
 {
     public function definition(): array

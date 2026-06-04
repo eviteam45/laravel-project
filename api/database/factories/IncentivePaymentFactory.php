@@ -3,12 +3,8 @@
 namespace Database\Factories;
 
 use App\Models\IncentiveApplication;
-use App\Models\IncentivePayment;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
-/**
- * @extends Factory<IncentivePayment>
- */
 class IncentivePaymentFactory extends Factory
 {
     public function definition(): array

@@ -2,13 +2,9 @@
 
 namespace App\Http\Resources;
 
-use App\Models\Project;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-/**
- * @mixin Project
- */
 class ProjectResource extends JsonResource
 {
     public function toArray(Request $request): array
@@ -25,7 +21,6 @@ class ProjectResource extends JsonResource
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
 
-            // Lightweight related summaries (only when eager-loaded).
             'contractor' => $this->whenLoaded('contractor', fn () => [
                 'id' => $this->contractor->id,
                 'company_name' => $this->contractor->company_name,

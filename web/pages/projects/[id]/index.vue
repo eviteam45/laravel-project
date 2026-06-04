@@ -13,20 +13,16 @@ const busy = ref(false)
 const transitionError = ref('')
 const showEdit = ref(false)
 
-// The detail page is server-scoped, so a contractor viewing it owns it.
-// Edit/Delete → contractor-owner or admin; Start application → any viewer
-// tied to the project (contractor or customer applicant, or admin).
 const canManageProject = computed(() => ['admin', 'contractor'].includes(user.value?.role ?? ''))
 const canStartApplication = computed(() => ['admin', 'contractor', 'customer'].includes(user.value?.role ?? ''))
 
 async function onEdit(payload: Record<string, any>) {
   await update(id, payload)
-  // Success: close the modal and reload the project.
+
   showEdit.value = false
   await refresh()
 }
 
-// --- documents ---
 const fileInput = ref<HTMLInputElement | null>(null)
 const docType = ref('contract')
 const uploading = ref(false)
@@ -140,7 +136,6 @@ async function destroy() {
       {{ transitionError }}
     </p>
 
-    <!-- Workflow transitions available to this user -->
     <div
       v-if="statusActions.length"
       class="mb-6 flex flex-wrap items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 p-4"
@@ -237,7 +232,6 @@ async function destroy() {
       </div>
     </div>
 
-    <!-- Documents (polymorphic, on the project) -->
     <div class="card mt-6">
       <h2 class="mb-3">
         Documents
@@ -316,7 +310,6 @@ async function destroy() {
       </p>
     </div>
 
-    <!-- Edit-project modal -->
     <Modal
       :open="showEdit"
       title="Edit project"

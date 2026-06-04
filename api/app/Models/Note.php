@@ -18,9 +18,6 @@ class Note extends Model
         'body',
     ];
 
-    /**
-     * The owning model the note is attached to (project, application, ...).
-     */
     public function notable(): MorphTo
     {
         return $this->morphTo();

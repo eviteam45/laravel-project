@@ -7,9 +7,6 @@ use App\Models\User;
 
 class ProjectPolicy
 {
-    /**
-     * Admins bypass all checks.
-     */
     public function before(User $user, string $ability): ?bool
     {
         return $user->isAdmin() ? true : null;
@@ -17,7 +14,7 @@ class ProjectPolicy
 
     public function viewAny(User $user): bool
     {
-        return true; // results are scoped by Project::visibleTo()
+        return true;
     }
 
     public function view(User $user, Project $project): bool

@@ -15,7 +15,7 @@ class IncentiveApplicationPolicy
 
     public function viewAny(User $user): bool
     {
-        return true; // scoped by IncentiveApplication::visibleTo()
+        return true;
     }
 
     public function view(User $user, IncentiveApplication $application): bool
@@ -23,26 +23,16 @@ class IncentiveApplicationPolicy
         return $this->canAccessProject($user, $application->project);
     }
 
-    /**
-     * The project's contractor or customer (or admin) may create its application.
-     */
     public function create(User $user, Project $project): bool
     {
         return $this->canAccessProject($user, $project);
     }
 
-    /**
-     * Both the contractor and the customer tied to the project may complete
-     * the multi-step form (§1: applicants fill it; contractors assist).
-     */
     public function update(User $user, IncentiveApplication $application): bool
     {
         return $this->canAccessProject($user, $application->project);
     }
 
-    /**
-     * Deleting a draft application is limited to the contractor (or admin).
-     */
     public function delete(User $user, IncentiveApplication $application): bool
     {
         return $user->contractor !== null

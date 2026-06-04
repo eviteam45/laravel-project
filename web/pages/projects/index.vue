@@ -4,7 +4,6 @@ import { PROJECT_STATUSES, REGIONS } from '~/composables/useProjects'
 const { list, create } = useProjects()
 const { user } = useAuth()
 
-// Only contractors and admins can create projects (mirrors ProjectPolicy@create).
 const canCreateProject = computed(() => ['contractor', 'admin'].includes(user.value?.role ?? ''))
 
 const filters = reactive({ search: '', status: '', region: '', sort: 'created_at', dir: 'desc', per_page: 15, page: 1 })
@@ -12,7 +11,7 @@ const showCreate = ref(false)
 
 async function onCreate(payload: Record<string, any>) {
   await create(payload)
-  // Success: close the modal and reload the list so the new project shows.
+
   showCreate.value = false
   filters.page = 1
   await refresh()
@@ -38,7 +37,6 @@ function applySearch() {
   refresh()
 }
 
-// Reset to page 1 whenever a dropdown filter changes.
 function onFilterChange() {
   filters.page = 1
 }
@@ -47,7 +45,6 @@ function setPage(p: number) {
   filters.page = p
 }
 
-// Clicking a column header sorts by it; clicking again flips direction.
 function sortBy(col: string) {
   if (filters.sort === col) {
     filters.dir = filters.dir === 'asc' ? 'desc' : 'asc'
@@ -239,7 +236,6 @@ const meta = computed(() => data.value?.meta)
       </button>
     </div>
 
-    <!-- Create-project modal -->
     <Modal
       :open="showCreate"
       title="New project"

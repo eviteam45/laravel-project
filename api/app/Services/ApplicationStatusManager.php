@@ -3,16 +3,10 @@
 namespace App\Services;
 
 use App\Jobs\ProcessApplicationTransition;
-use App\Models\IncentiveApplication;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Validation\ValidationException;
 
-/**
- * Incentive application workflow:
- *   started → in_progress → submitted → under_review → reserved → paid
- *   (+ rejected from under_review, + withdrawn by the customer)
- */
 class ApplicationStatusManager extends StatusTransitionManager
 {
     public function graph(): array
@@ -46,7 +40,7 @@ class ApplicationStatusManager extends StatusTransitionManager
 
     protected function ownerCheck(Model $subject, User $actor): bool
     {
-        /** @var IncentiveApplication $subject */
+
         $project = $subject->project;
 
         return ($actor->contractor && $project->contractor_id === $actor->contractor->id)
@@ -55,7 +49,7 @@ class ApplicationStatusManager extends StatusTransitionManager
 
     protected function mutations(Model $subject, string $to, array $context): array
     {
-        /** @var IncentiveApplication $subject */
+
         if ($to === 'submitted') {
             if ($missing = $subject->missingStepKeys()) {
                 throw ValidationException::withMessages([
@@ -88,8 +82,8 @@ class ApplicationStatusManager extends StatusTransitionManager
         return [[], []];
     }
 
-    protected function sideEffects(Model $subject, string $from, string $to, array $context): void
+    protected function sideEffects(Model $subject, string $from, string $to, User $actor, array $context): void
     {
-        ProcessApplicationTransition::dispatch($subject->getKey(), $from, $to);
+        ProcessApplicationTransition::dispatchSync($subject->getKey(), $from, $to, $actor->id);
     }
 }

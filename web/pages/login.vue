@@ -1,24 +1,29 @@
 <script setup lang="ts">
+import { toTypedSchema } from '@vee-validate/zod'
+import { useForm } from 'vee-validate'
+import { loginSchema } from '~/schemas/auth'
+
 const { login } = useAuth()
+const general = ref('')
 
-const form = reactive({ email: '', password: '' })
-const error = ref('')
-const loading = ref(false)
+const { defineField, handleSubmit, errors, isSubmitting, setErrors } = useForm({
+  validationSchema: toTypedSchema(loginSchema),
+  initialValues: { email: '', password: '' },
+})
+const [email, emailAttrs] = defineField('email')
+const [password, passwordAttrs] = defineField('password')
 
-async function onSubmit() {
-  error.value = ''
-  loading.value = true
+const onSubmit = handleSubmit(async (values) => {
+  general.value = ''
   try {
-    await login({ ...form })
+    await login(values)
     await navigateTo('/')
   }
   catch (e: any) {
-    error.value = e?.data?.message ?? 'Login failed.'
+    if (e?.data?.errors) setErrors(mapServerErrors(e.data.errors))
+    else general.value = e?.data?.message ?? 'Login failed.'
   }
-  finally {
-    loading.value = false
-  }
-}
+})
 </script>
 
 <template>
@@ -32,15 +37,15 @@ async function onSubmit() {
       </p>
 
       <p
-        v-if="error"
+        v-if="general"
         class="field-error mb-3"
       >
-        {{ error }}
+        {{ general }}
       </p>
 
       <form
         class="space-y-4"
-        @submit.prevent="onSubmit"
+        @submit="onSubmit"
       >
         <div>
           <label
@@ -49,12 +54,18 @@ async function onSubmit() {
           >Email</label>
           <input
             id="email"
-            v-model="form.email"
+            v-model="email"
+            v-bind="emailAttrs"
             class="input"
             type="email"
-            required
             autocomplete="email"
           >
+          <p
+            v-if="errors.email"
+            class="field-error"
+          >
+            {{ errors.email }}
+          </p>
         </div>
         <div>
           <label
@@ -63,25 +74,33 @@ async function onSubmit() {
           >Password</label>
           <input
             id="password"
-            v-model="form.password"
+            v-model="password"
+            v-bind="passwordAttrs"
             class="input"
             type="password"
-            required
             autocomplete="current-password"
           >
+          <p
+            v-if="errors.password"
+            class="field-error"
+          >
+            {{ errors.password }}
+          </p>
         </div>
         <button
           type="submit"
           class="btn btn-primary w-full"
-          :disabled="loading"
+          :disabled="isSubmitting"
         >
-          {{ loading ? 'Logging in…' : 'Log in' }}
+          {{ isSubmitting ? 'Logging in…' : 'Log in' }}
         </button>
       </form>
     </div>
 
     <p class="mt-4 text-center text-sm text-gray-500">
-      No account? <NuxtLink to="/register">Create one</NuxtLink>
+      No account? <NuxtLink to="/register">
+        Create one
+      </NuxtLink>
     </p>
   </div>
 </template>

@@ -2,13 +2,9 @@
 
 namespace App\Http\Resources;
 
-use App\Models\Contractor;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-/**
- * @mixin Contractor
- */
 class ContractorResource extends JsonResource
 {
     public function toArray(Request $request): array

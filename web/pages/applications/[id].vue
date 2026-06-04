@@ -17,7 +17,6 @@ const STEPS = [
   { key: 'review', label: 'Review & submit' },
 ]
 
-// Local form state, hydrated from any previously saved step data.
 const forms = reactive<Record<string, any>>({
   eligibility: { owns_property: false, utility_provider: '', average_monthly_bill: null },
   system: { battery_oem: '', battery_model: '', quantity: 1, usable_capacity_kwh: null },
@@ -36,7 +35,6 @@ const errors = ref<Record<string, string>>({})
 const general = ref('')
 const saving = ref(false)
 
-// Editable only while the application is being filled in.
 const locked = computed(() => !['started', 'in_progress'].includes(app.value?.status))
 
 function isComplete(key: string): boolean {
@@ -68,7 +66,6 @@ async function persist(key: string, complete: boolean) {
   }
 }
 
-// --- documents ---
 const fileInput = ref<HTMLInputElement | null>(null)
 const docType = ref('proof')
 const uploading = ref(false)
@@ -113,7 +110,6 @@ async function onSubmit() {
   }
 }
 
-// --- status transitions (role-aware; wizard-driven edges excluded) ---
 const statusActions = computed(() =>
   transitionsFor(APPLICATION_TRANSITIONS, app.value?.status, user.value?.role)
     .filter(t => !['in_progress', 'submitted'].includes(t)),
@@ -168,7 +164,6 @@ async function doTransition(to: string) {
       This application has been submitted and is now read-only.
     </p>
 
-    <!-- Status actions available to this user's role -->
     <div
       v-if="statusActions.length"
       class="mb-6 rounded-xl border border-blue-100 bg-blue-50 p-4"

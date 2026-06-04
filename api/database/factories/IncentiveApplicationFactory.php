@@ -6,9 +6,6 @@ use App\Models\IncentiveApplication;
 use App\Models\Project;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
-/**
- * @extends Factory<IncentiveApplication>
- */
 class IncentiveApplicationFactory extends Factory
 {
     public function definition(): array

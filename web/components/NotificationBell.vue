@@ -34,11 +34,17 @@ function onDocClick(e: MouseEvent) {
   if (root.value && !root.value.contains(e.target as Node)) open.value = false
 }
 
+let timer: ReturnType<typeof setInterval> | undefined
+
 onMounted(() => {
   load()
+  timer = setInterval(load, 30000)
   document.addEventListener('click', onDocClick)
 })
-onBeforeUnmount(() => document.removeEventListener('click', onDocClick))
+onBeforeUnmount(() => {
+  if (timer) clearInterval(timer)
+  document.removeEventListener('click', onDocClick)
+})
 </script>
 
 <template>

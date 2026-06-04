@@ -24,7 +24,6 @@ class DashboardTest extends TestCase
         Project::factory()->for($contractor)->create(['status' => 'draft']);
         Project::factory(2)->for($contractor)->create(['status' => 'installed']);
 
-        // Another contractor's projects — must be excluded.
         Project::factory(4)->create();
 
         $reserved = IncentiveApplication::factory()
@@ -40,7 +39,7 @@ class DashboardTest extends TestCase
 
         $this->getJson('/api/dashboard/stats')
             ->assertOk()
-            ->assertJsonPath('projects.total', 4) // 3 + 1 (the reserved app's project)
+            ->assertJsonPath('projects.total', 4)
             ->assertJsonPath('projects.by_status.installed', 2)
             ->assertJsonPath('projects.by_status.draft', 1)
             ->assertJsonPath('applications.total', 1)
@@ -52,11 +51,52 @@ class DashboardTest extends TestCase
             ->assertJsonCount(1, 'recent_applications');
     }
 
+    public function test_an_admin_sees_global_stats_across_all_users(): void
+    {
+        $contractor = Contractor::factory()->create();
+        Project::factory(3)->for($contractor)->create(['status' => 'draft']);
+        Project::factory(2)->create(['status' => 'installed']);
+
+        $app = IncentiveApplication::factory()
+            ->for(Project::factory()->state(['status' => 'submitted']))
+            ->create(['status' => 'reserved', 'incentive_amount' => 2500]);
+        IncentivePayment::factory()->for($app, 'application')->create(['status' => 'paid', 'amount' => 1500]);
+
+        $admin = User::factory()->admin()->create();
+        Sanctum::actingAs($admin);
+
+        $this->getJson('/api/dashboard/stats')
+            ->assertOk()
+            ->assertJsonPath('projects.total', 6)
+            ->assertJsonPath('projects.by_status.draft', 3)
+            ->assertJsonPath('projects.by_status.installed', 2)
+            ->assertJsonPath('applications.total', 1)
+            ->assertJsonPath('incentives.reserved_total', 2500)
+            ->assertJsonPath('incentives.paid_total', 1500);
+    }
+
+    public function test_a_contractor_only_sees_their_own_stats(): void
+    {
+        $mine = Contractor::factory()->create();
+        $user = User::factory()->contractor()->create();
+        $mine->update(['user_id' => $user->id]);
+
+        Project::factory(2)->for($mine)->create(['status' => 'draft']);
+        Project::factory(5)->create(['status' => 'draft']);
+
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/dashboard/stats')
+            ->assertOk()
+            ->assertJsonPath('projects.total', 2)
+            ->assertJsonPath('projects.by_status.draft', 2);
+    }
+
     public function test_notifications_list_is_scoped_and_can_be_marked_read(): void
     {
         $user = User::factory()->create();
         Notification::factory(2)->unread()->for($user)->create();
-        Notification::factory()->for(User::factory())->create(); // someone else's
+        Notification::factory()->for(User::factory())->create();
 
         Sanctum::actingAs($user);
 

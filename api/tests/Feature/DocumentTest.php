@@ -15,7 +15,6 @@ class DocumentTest extends TestCase
 {
     use RefreshDatabase;
 
-    /** @return array{0: User, 1: Contractor} */
     private function contractorOwner(): array
     {
         $user = User::factory()->contractor()->create();

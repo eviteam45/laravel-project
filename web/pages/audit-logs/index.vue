@@ -1,4 +1,6 @@
 <script setup lang="ts">
+definePageMeta({ roles: ['admin'] })
+
 const { user } = useAuth()
 const isAdmin = computed(() => user.value?.role === 'admin')
 

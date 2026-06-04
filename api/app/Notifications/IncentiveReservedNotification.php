@@ -8,19 +8,12 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-/**
- * Queued email sent to the customer when their incentive is reserved.
- * Uses the configured mailer (log/Mailhog is fine for dev).
- */
 class IncentiveReservedNotification extends Notification implements ShouldQueue
 {
     use Queueable;
 
     public function __construct(public IncentiveApplication $application) {}
 
-    /**
-     * @return array<int, string>
-     */
     public function via(object $notifiable): array
     {
         return ['mail'];

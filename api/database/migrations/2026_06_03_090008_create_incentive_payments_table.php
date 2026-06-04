@@ -14,7 +14,7 @@ return new class extends Migration
                 ->constrained('incentive_applications')
                 ->cascadeOnDelete();
             $table->decimal('amount', 12, 2);
-            $table->string('status')->default('pending'); // pending | scheduled | paid | failed
+            $table->string('status')->default('pending');
             $table->date('scheduled_for')->nullable();
             $table->timestamp('paid_at')->nullable();
             $table->timestamps();

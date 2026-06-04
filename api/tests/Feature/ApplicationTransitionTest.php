@@ -2,14 +2,12 @@
 
 namespace Tests\Feature;
 
-use App\Jobs\ProcessApplicationTransition;
 use App\Models\Contractor;
 use App\Models\Customer;
 use App\Models\IncentiveApplication;
 use App\Models\Project;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Queue;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -68,7 +66,6 @@ class ApplicationTransitionTest extends TestCase
     {
         Sanctum::actingAs($this->admin);
 
-        // submitted → paid is not an allowed edge.
         $this->transition(['to' => 'paid'])
             ->assertStatus(422)
             ->assertJsonValidationErrors('to');
@@ -76,7 +73,7 @@ class ApplicationTransitionTest extends TestCase
 
     public function test_a_contractor_cannot_perform_an_admin_only_transition(): void
     {
-        // The contractor owns the project but under_review is admin-only → 403.
+
         Sanctum::actingAs($this->contractorUser);
 
         $this->transition(['to' => 'under_review'])->assertForbidden();
@@ -101,16 +98,23 @@ class ApplicationTransitionTest extends TestCase
             ->assertJsonValidationErrors('incentive_amount');
     }
 
-    public function test_a_transition_dispatches_the_background_job(): void
+    public function test_a_transition_notifies_related_parties_synchronously(): void
     {
-        Queue::fake();
         Sanctum::actingAs($this->admin);
 
         $this->transition(['to' => 'under_review'])->assertOk();
 
-        Queue::assertPushed(ProcessApplicationTransition::class, function ($job) {
-            return $job->applicationId === $this->application->id && $job->to === 'under_review';
-        });
+        foreach ([$this->contractorUser, $this->customerUser] as $user) {
+            $this->assertDatabaseHas('notifications', [
+                'user_id' => $user->id,
+                'type' => 'application_under_review',
+            ]);
+        }
+
+        $this->assertDatabaseMissing('notifications', [
+            'user_id' => $this->admin->id,
+            'type' => 'application_under_review',
+        ]);
     }
 
     public function test_reserving_notifies_the_customer_and_schedules_a_payment(): void

@@ -6,8 +6,18 @@ const { stats, notifications, markAllRead } = useDashboard()
 
 if (!user.value) await fetchUser()
 
-const { data: statsData } = await useAsyncData('dashboard-stats', () => stats())
-const { data: notifData, refresh: refreshNotifs } = await useAsyncData('dashboard-notifs', () => notifications())
+const scope = computed(() => user.value?.id ?? 'guest')
+
+const { data: statsData } = await useAsyncData(
+  `dashboard-stats:${scope.value}`,
+  () => stats(),
+  { watch: [scope] },
+)
+const { data: notifData, refresh: refreshNotifs } = await useAsyncData(
+  `dashboard-notifs:${scope.value}`,
+  () => notifications(),
+  { watch: [scope] },
+)
 
 const s = computed(() => statsData.value)
 const notifs = computed(() => notifData.value?.data ?? [])
@@ -30,7 +40,6 @@ function prettyType(type: string) {
       <span class="badge ml-1">{{ user?.role }}</span>
     </p>
 
-    <!-- Stat cards -->
     <div class="grid gap-4 sm:grid-cols-3">
       <div class="card">
         <p class="text-3xl font-bold">
@@ -79,7 +88,6 @@ function prettyType(type: string) {
     </div>
 
     <div class="mt-6 grid gap-6 md:grid-cols-2">
-      <!-- Recent applications -->
       <div class="card">
         <h2 class="mb-3">
           Recent applications
@@ -108,7 +116,6 @@ function prettyType(type: string) {
         </p>
       </div>
 
-      <!-- Notifications -->
       <div class="card">
         <div class="mb-3 flex items-center justify-between">
           <h2 class="flex items-center gap-2">

@@ -1,6 +1,3 @@
-/**
- * Dashboard stats + notifications API.
- */
 export function useDashboard() {
   const api = useApi()
 

@@ -20,8 +20,6 @@ class IndexCapabilitiesTest extends TestCase
         return User::factory()->admin()->create();
     }
 
-    // ----- Pagination -----
-
     public function test_projects_index_returns_pagination_meta(): void
     {
         Project::factory(5)->create();
@@ -35,8 +33,6 @@ class IndexCapabilitiesTest extends TestCase
             ->assertJsonPath('meta.last_page', 3)
             ->assertJsonStructure(['data', 'links', 'meta' => ['current_page', 'last_page', 'per_page', 'total']]);
     }
-
-    // ----- Filtering (region, through the contractor relation) -----
 
     public function test_projects_can_be_filtered_by_region(): void
     {
@@ -58,22 +54,18 @@ class IndexCapabilitiesTest extends TestCase
         $alpha = Project::factory()->for($north)->create(['name' => 'Alpha Roof']);
         IncentiveApplication::factory()->for($alpha)->create();
 
-        // Pin the other contractor's region/company so filters stay deterministic.
         $south = Contractor::factory()->create(['region' => 'South', 'company_name' => 'SouthSolar']);
         $beta = Project::factory()->for($south)->create(['name' => 'Beta Roof']);
         IncentiveApplication::factory()->for($beta)->create();
 
         Sanctum::actingAs($this->admin());
 
-        // search matches the project name
         $this->getJson('/api/applications?search=Alpha')->assertOk()->assertJsonCount(1, 'data');
-        // search matches the contractor company
+
         $this->getJson('/api/applications?search=NorthSolar')->assertOk()->assertJsonCount(1, 'data');
-        // region filters through project → contractor
+
         $this->getJson('/api/applications?region=North')->assertOk()->assertJsonCount(1, 'data');
     }
-
-    // ----- Sorting (whitelist + stable tiebreaker) -----
 
     public function test_projects_sort_is_whitelisted_and_stable(): void
     {
@@ -86,11 +78,8 @@ class IndexCapabilitiesTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.0.name', 'A project');
 
-        // An unknown sort column falls back to the default (no SQL injection surface).
         $this->getJson('/api/projects?sort=capacity_kw);DROP&dir=asc')->assertOk();
     }
-
-    // ----- Eager loading proof: query count must not scale with row count -----
 
     public function test_projects_index_has_no_n_plus_one(): void
     {
@@ -108,7 +97,6 @@ class IndexCapabilitiesTest extends TestCase
         $withMany = count(DB::getQueryLog());
         DB::disableQueryLog();
 
-        // 2 rows vs 15 rows → same number of queries (eager-loaded, no N+1).
         $this->assertSame($withFew, $withMany, "N+1 on projects index: {$withFew} vs {$withMany} queries");
     }
 
@@ -131,19 +119,15 @@ class IndexCapabilitiesTest extends TestCase
         $this->assertSame($withFew, $withMany, "N+1 on applications index: {$withFew} vs {$withMany} queries");
     }
 
-    // ----- Role scoping: same endpoint, different rows per role -----
-
     public function test_same_endpoint_returns_different_rows_per_role(): void
     {
         $contractor = Contractor::factory()->create();
         $mine = Project::factory()->for($contractor)->create();
-        Project::factory(3)->create(); // other contractors
+        Project::factory(3)->create();
 
-        // Admin sees everything.
         Sanctum::actingAs($this->admin());
         $this->getJson('/api/projects')->assertOk()->assertJsonCount(4, 'data');
 
-        // The contractor sees only their own.
         Sanctum::actingAs($contractor->user);
         $this->getJson('/api/projects')->assertOk()->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.id', $mine->id);

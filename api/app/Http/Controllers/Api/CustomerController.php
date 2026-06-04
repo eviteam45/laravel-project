@@ -2,26 +2,30 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\HandlesIndexQueries;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreCustomerRequest;
+use App\Http\Requests\UpdateCustomerRequest;
 use App\Http\Resources\CustomerResource;
 use App\Models\Customer;
-use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
+use OpenApi\Attributes as OA;
 
-/**
- * Admin-only customer management (authorization via CustomerPolicy::before).
- */
 class CustomerController extends Controller
 {
-    /**
-     * Lightweight customer list (id + name) for picker dropdowns.
-     * Available to contractors and admins — the roles that create projects.
-     */
+    use HandlesIndexQueries;
+
+    #[OA\Get(
+        path: '/customers/options',
+        tags: ['Customers'],
+        summary: 'Lightweight customer picker list (contractor or admin)',
+        security: [['bearerAuth' => []]],
+        parameters: [new OA\Parameter(name: 'search', in: 'query', schema: new OA\Schema(type: 'string'))],
+        responses: [new OA\Response(response: 200, description: '[{id, full_name, account_email}]')]
+    )]
     public function options(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -36,6 +40,14 @@ class CustomerController extends Controller
         return response()->json(['data' => $customers]);
     }
 
+    #[OA\Get(
+        path: '/customers',
+        tags: ['Customers'],
+        summary: 'List customers (admin only)',
+        security: [['bearerAuth' => []]],
+        parameters: [new OA\Parameter(name: 'search', in: 'query', schema: new OA\Schema(type: 'string'))],
+        responses: [new OA\Response(response: 200, description: 'Paginated customers')]
+    )]
     public function index(Request $request): AnonymousResourceCollection
     {
         $this->authorize('viewAny', Customer::class);
@@ -43,49 +55,44 @@ class CustomerController extends Controller
         $customers = Customer::query()
             ->with('user:id,name,email')
             ->withCount('projects')
-            ->when($request->filled('search'), function ($q) use ($request) {
-                $term = '%'.$request->query('search').'%';
-                $q->where(fn ($sub) => $sub->where('full_name', 'like', $term)->orWhere('account_email', 'like', $term));
-            })
+            ->filter($request)
             ->latest();
 
-        $perPage = min(max((int) $request->query('per_page', 15), 1), 100);
-
-        return CustomerResource::collection($customers->paginate($perPage)->withQueryString());
+        return CustomerResource::collection($this->paginated($customers, $request));
     }
 
-    public function store(Request $request): CustomerResource
+    #[OA\Post(
+        path: '/customers',
+        tags: ['Customers'],
+        summary: 'Provision a customer + user account (admin only)',
+        security: [['bearerAuth' => []]],
+        requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(
+            required: ['name', 'email', 'password'],
+            properties: [
+                new OA\Property(property: 'name', type: 'string'),
+                new OA\Property(property: 'email', type: 'string', format: 'email'),
+                new OA\Property(property: 'password', type: 'string', format: 'password'),
+                new OA\Property(property: 'phone', type: 'string'),
+                new OA\Property(property: 'address', type: 'string'),
+            ]
+        )),
+        responses: [new OA\Response(response: 201, description: 'Created')]
+    )]
+    public function store(StoreCustomerRequest $request): CustomerResource
     {
-        $this->authorize('create', Customer::class);
-
-        $data = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
-            'password' => ['required', 'string', 'min:8'],
-            'full_name' => ['nullable', 'string', 'max:255'],
-            'phone' => ['nullable', 'string', 'max:50'],
-            'address' => ['nullable', 'string', 'max:255'],
-        ]);
-
-        $customer = DB::transaction(function () use ($data) {
-            $user = User::create([
-                'name' => $data['name'],
-                'email' => $data['email'],
-                'password' => Hash::make($data['password']),
-                'role' => 'customer',
-            ]);
-
-            return $user->customer()->create([
-                'full_name' => $data['full_name'] ?? $data['name'],
-                'phone' => $data['phone'] ?? null,
-                'address' => $data['address'] ?? null,
-                'account_email' => $data['email'],
-            ]);
-        });
+        $customer = Customer::provision($request->validated());
 
         return new CustomerResource($customer->load('user:id,name,email'));
     }
 
+    #[OA\Get(
+        path: '/customers/{customer}',
+        tags: ['Customers'],
+        summary: 'Show a customer (admin only)',
+        security: [['bearerAuth' => []]],
+        parameters: [new OA\Parameter(name: 'customer', in: 'path', required: true, schema: new OA\Schema(type: 'integer'))],
+        responses: [new OA\Response(response: 200, description: 'Customer')]
+    )]
     public function show(Customer $customer): CustomerResource
     {
         $this->authorize('view', $customer);
@@ -93,22 +100,38 @@ class CustomerController extends Controller
         return new CustomerResource($customer->load('user:id,name,email')->loadCount('projects'));
     }
 
-    public function update(Request $request, Customer $customer): CustomerResource
+    #[OA\Put(
+        path: '/customers/{customer}',
+        tags: ['Customers'],
+        summary: 'Update a customer (admin only)',
+        security: [['bearerAuth' => []]],
+        parameters: [new OA\Parameter(name: 'customer', in: 'path', required: true, schema: new OA\Schema(type: 'integer'))],
+        requestBody: new OA\RequestBody(content: new OA\JsonContent(properties: [
+            new OA\Property(property: 'full_name', type: 'string'),
+            new OA\Property(property: 'phone', type: 'string'),
+            new OA\Property(property: 'address', type: 'string'),
+            new OA\Property(property: 'account_email', type: 'string', format: 'email'),
+        ])),
+        responses: [new OA\Response(response: 200, description: 'Updated')]
+    )]
+    public function update(UpdateCustomerRequest $request, Customer $customer): CustomerResource
     {
-        $this->authorize('update', $customer);
-
-        $data = $request->validate([
-            'full_name' => ['sometimes', 'string', 'max:255'],
-            'phone' => ['nullable', 'string', 'max:50'],
-            'address' => ['nullable', 'string', 'max:255'],
-            'account_email' => ['sometimes', 'email', 'max:255'],
-        ]);
-
-        $customer->update($data);
+        $customer->update($request->validated());
 
         return new CustomerResource($customer->load('user:id,name,email'));
     }
 
+    #[OA\Delete(
+        path: '/customers/{customer}',
+        tags: ['Customers'],
+        summary: 'Delete a customer (admin only; blocked if it has projects)',
+        security: [['bearerAuth' => []]],
+        parameters: [new OA\Parameter(name: 'customer', in: 'path', required: true, schema: new OA\Schema(type: 'integer'))],
+        responses: [
+            new OA\Response(response: 200, description: 'Deleted'),
+            new OA\Response(response: 422, description: 'Has projects'),
+        ]
+    )]
     public function destroy(Customer $customer): JsonResponse
     {
         $this->authorize('delete', $customer);
@@ -119,11 +142,7 @@ class CustomerController extends Controller
             ]);
         }
 
-        DB::transaction(function () use ($customer) {
-            $userId = $customer->user_id;
-            $customer->delete();
-            User::whereKey($userId)->delete();
-        });
+        $customer->deleteWithUser();
 
         return response()->json(['message' => 'Customer deleted.']);
     }

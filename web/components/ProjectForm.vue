@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { toTypedSchema } from '@vee-validate/zod'
+import { useForm } from 'vee-validate'
+import { projectSchema } from '~/schemas/project'
+
 const props = defineProps<{
   initial?: Record<string, any>
   submitLabel?: string
@@ -6,44 +10,45 @@ const props = defineProps<{
 }>()
 
 const { user } = useAuth()
-// Contractors create under their own profile; admins must pick a contractor.
-// Only on create — reassigning a project's contractor isn't supported on edit.
+
 const showContractorPicker = computed(() => user.value?.role === 'admin' && !props.initial?.id)
 
-const form = reactive({
-  name: props.initial?.name ?? '',
-  contractor_id: props.initial?.contractor_id ?? null,
-  customer_id: props.initial?.customer_id ?? null,
-  address: props.initial?.address ?? '',
-  capacity_kw: props.initial?.capacity_kw ?? null,
-  install_date: props.initial?.install_date ?? '',
-})
-
-const errors = ref<Record<string, string[]>>({})
 const general = ref('')
-const loading = ref(false)
 
-async function handle() {
-  loading.value = true
-  errors.value = {}
+const { defineField, handleSubmit, errors, isSubmitting, setErrors } = useForm({
+  validationSchema: toTypedSchema(projectSchema),
+  initialValues: {
+    name: props.initial?.name ?? '',
+    contractor_id: props.initial?.contractor_id ?? null,
+    customer_id: props.initial?.customer_id ?? null,
+    address: props.initial?.address ?? '',
+    capacity_kw: props.initial?.capacity_kw ?? null,
+    install_date: props.initial?.install_date ?? '',
+  },
+})
+const [name, nameAttrs] = defineField('name')
+const [contractorId] = defineField('contractor_id')
+const [customerId] = defineField('customer_id')
+const [address, addressAttrs] = defineField('address')
+const [capacityKw, capacityKwAttrs] = defineField('capacity_kw')
+const [installDate, installDateAttrs] = defineField('install_date')
+
+const submit = handleSubmit(async (values) => {
   general.value = ''
   try {
-    await props.onSubmit({ ...form })
+    await props.onSubmit(values)
   }
   catch (e: any) {
-    if (e?.data?.errors) errors.value = e.data.errors
+    if (e?.data?.errors) setErrors(mapServerErrors(e.data.errors))
     else general.value = e?.data?.message ?? 'Something went wrong.'
   }
-  finally {
-    loading.value = false
-  }
-}
+})
 </script>
 
 <template>
   <form
     class="space-y-4"
-    @submit.prevent="handle"
+    @submit="submit"
   >
     <p
       v-if="general"
@@ -59,44 +64,44 @@ async function handle() {
       >Name</label>
       <input
         id="name"
-        v-model="form.name"
+        v-model="name"
+        v-bind="nameAttrs"
         class="input"
         type="text"
-        required
       >
       <p
         v-if="errors.name"
         class="field-error"
       >
-        {{ errors.name[0] }}
+        {{ errors.name }}
       </p>
     </div>
 
     <div v-if="showContractorPicker">
       <label class="label">Contractor</label>
       <ContractorSelect
-        v-model="form.contractor_id"
+        v-model="contractorId"
         :initial-label="initial?.contractor?.company_name"
       />
       <p
         v-if="errors.contractor_id"
         class="field-error"
       >
-        {{ errors.contractor_id[0] }}
+        {{ errors.contractor_id }}
       </p>
     </div>
 
     <div>
       <label class="label">Customer</label>
       <CustomerSelect
-        v-model="form.customer_id"
+        v-model="customerId"
         :initial-label="initial?.customer?.full_name"
       />
       <p
         v-if="errors.customer_id"
         class="field-error"
       >
-        {{ errors.customer_id[0] }}
+        {{ errors.customer_id }}
       </p>
     </div>
 
@@ -107,7 +112,8 @@ async function handle() {
       >Address</label>
       <input
         id="address"
-        v-model="form.address"
+        v-model="address"
+        v-bind="addressAttrs"
         class="input"
         type="text"
       >
@@ -121,7 +127,8 @@ async function handle() {
         >Capacity (kW)</label>
         <input
           id="capacity_kw"
-          v-model.number="form.capacity_kw"
+          v-model="capacityKw"
+          v-bind="capacityKwAttrs"
           class="input"
           type="number"
           step="0.01"
@@ -130,7 +137,7 @@ async function handle() {
           v-if="errors.capacity_kw"
           class="field-error"
         >
-          {{ errors.capacity_kw[0] }}
+          {{ errors.capacity_kw }}
         </p>
       </div>
       <div>
@@ -140,7 +147,8 @@ async function handle() {
         >Install date</label>
         <input
           id="install_date"
-          v-model="form.install_date"
+          v-model="installDate"
+          v-bind="installDateAttrs"
           class="input"
           type="date"
         >
@@ -150,9 +158,9 @@ async function handle() {
     <button
       type="submit"
       class="btn btn-primary"
-      :disabled="loading"
+      :disabled="isSubmitting"
     >
-      {{ loading ? 'Saving…' : (submitLabel ?? 'Save') }}
+      {{ isSubmitting ? 'Saving…' : (submitLabel ?? 'Save') }}
     </button>
   </form>
 </template>

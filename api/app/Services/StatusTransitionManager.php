@@ -9,53 +9,24 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
-/**
- * Generic, server-side-enforced status state machine.
- *
- * Subclasses declare a transition graph of `from => [to => [allowed roles]]`.
- *  - An edge that is not in the graph is rejected with a 422 (illegal transition).
- *  - A valid edge attempted by a role/owner that is not permitted is a 403.
- * Admins may perform any defined edge.
- */
 abstract class StatusTransitionManager
 {
-    /**
-     * @return array<string, array<string, list<string>>>
-     */
     abstract public function graph(): array;
 
-    /**
-     * Whether a non-admin actor is connected to this subject (ownership).
-     */
     abstract protected function ownerCheck(Model $subject, User $actor): bool;
 
-    /**
-     * Extra attributes to persist and change-log entries for a transition.
-     * May throw ValidationException for transition-specific requirements.
-     *
-     * @return array{0: array<string, mixed>, 1: array<string, mixed>}
-     */
     protected function mutations(Model $subject, string $to, array $context): array
     {
         return [[], []];
     }
 
-    /**
-     * Fire-and-forget work after the status has changed (jobs, etc).
-     */
-    protected function sideEffects(Model $subject, string $from, string $to, array $context): void
-    {
-        //
-    }
+    protected function sideEffects(Model $subject, string $from, string $to, User $actor, array $context): void {}
 
     public function canTransition(string $from, string $to): bool
     {
         return array_key_exists($to, $this->graph()[$from] ?? []);
     }
 
-    /**
-     * @return list<string> destinations reachable by this actor from $from
-     */
     public function allowedFor(string $from, User $actor): array
     {
         $edges = $this->graph()[$from] ?? [];
@@ -85,10 +56,8 @@ abstract class StatusTransitionManager
             }
         }
 
-        // Validation/requirements run before any write (may throw 422).
         [$attributes, $changes] = $this->mutations($subject, $to, $context);
 
-        // The status change and its audit entry must commit together.
         DB::transaction(function () use ($subject, $to, $attributes, $changes, $from, $actor, $context) {
             $subject->forceFill(['status' => $to] + $attributes)->save();
 
@@ -105,8 +74,7 @@ abstract class StatusTransitionManager
             ]);
         });
 
-        // Side effects (queued jobs/notifications) only fire after the commit.
-        $this->sideEffects($subject, $from, $to, $context);
+        $this->sideEffects($subject, $from, $to, $actor, $context);
 
         return $subject;
     }

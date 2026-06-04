@@ -3,83 +3,64 @@
 namespace App\Jobs;
 
 use App\Models\IncentiveApplication;
-use App\Models\Notification;
 use App\Notifications\IncentiveReservedNotification;
+use App\Services\TransitionNotifier;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 
-/**
- * Runs after an application status change: notifies the customer and,
- * on approval, schedules the incentive payment.
- *
- * Receives scalar IDs (not the model) so the payload stays small and
- * always reflects fresh data when the job runs.
- */
 class ProcessApplicationTransition implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    private const NOTIFIABLE = ['submitted', 'under_review', 'reserved', 'paid', 'rejected', 'withdrawn'];
 
     public function __construct(
         public int $applicationId,
         public string $from,
         public string $to,
+        public ?int $actorId = null,
     ) {}
 
     public function handle(): void
     {
-        $application = IncentiveApplication::with('project.customer.user')->find($this->applicationId);
+        $application = IncentiveApplication::with(['project.contractor.user', 'project.customer.user'])
+            ->find($this->applicationId);
 
-        if (! $application) {
+        if (! $application || ! $application->project) {
             return;
         }
 
-        $customerUser = $application->project?->customer?->user;
+        $notifier = app(TransitionNotifier::class);
 
-        // Only notify the customer about meaningful milestones.
-        $notifiable = ['submitted', 'under_review', 'reserved', 'paid', 'rejected', 'withdrawn'];
-        $type = "application_{$this->to}";
+        if (in_array($this->to, self::NOTIFIABLE, true)) {
+            $customerUser = $application->project->customer?->user;
 
-        // Idempotent: don't re-create the same milestone notification on retry.
-        $alreadyNotified = $customerUser && Notification::query()
-            ->where('user_id', $customerUser->id)
-            ->where('type', $type)
-            ->where('data->application_id', $application->id)
-            ->exists();
+            $data = [
+                'application_id' => $application->id,
+                'project_id' => $application->project_id,
+                'from' => $this->from,
+                'to' => $this->to,
+            ];
 
-        if ($customerUser && in_array($this->to, $notifiable, true) && ! $alreadyNotified) {
-            Notification::create([
-                'user_id' => $customerUser->id,
-                'type' => $type,
-                'data' => [
-                    'application_id' => $application->id,
-                    'project_id' => $application->project_id,
-                    'from' => $this->from,
-                    'to' => $this->to,
-                ],
-            ]);
+            foreach ($notifier->recipients($application->project, $this->actorId) as $recipient) {
+                $created = $notifier->record($recipient, "application_{$this->to}", $data, ['application_id']);
 
-            // Queued email on reservation (6.6).
-            if ($this->to === 'reserved') {
-                $customerUser->notify(new IncentiveReservedNotification($application));
+                if ($created && $this->to === 'reserved' && $recipient->is($customerUser)) {
+                    $recipient->notifyNow(new IncentiveReservedNotification($application));
+                }
             }
         }
 
-        // Reserving funds schedules the incentive payout 30 days out.
-        // firstOrCreate keeps this idempotent — a retry won't double-create.
         if ($this->to === 'reserved' && $application->incentive_amount !== null) {
             $application->payments()->firstOrCreate(
                 ['status' => 'scheduled'],
-                [
-                    'amount' => $application->incentive_amount,
-                    'scheduled_for' => now()->addDays(30),
-                ],
+                ['amount' => $application->incentive_amount, 'scheduled_for' => now()->addDays(30)],
             );
         }
 
-        // Marking paid settles any scheduled payments (naturally idempotent).
         if ($this->to === 'paid') {
             $application->payments()
                 ->where('status', 'scheduled')

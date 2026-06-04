@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('incentive_applications', function (Blueprint $table) {
             $table->id();
             $table->foreignId('project_id')->constrained()->cascadeOnDelete();
-            $table->string('status')->default('started'); // started | in_progress | submitted | under_review | reserved | paid | rejected | withdrawn
+            $table->string('status')->default('started');
             $table->string('current_step')->nullable();
             $table->timestamp('submitted_at')->nullable();
             $table->decimal('incentive_amount', 12, 2)->nullable();

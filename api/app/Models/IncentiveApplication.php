@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
 class IncentiveApplication extends Model
@@ -16,10 +17,13 @@ class IncentiveApplication extends Model
 
     public const STATUSES = ['started', 'in_progress', 'submitted', 'under_review', 'reserved', 'paid', 'rejected', 'withdrawn'];
 
+    public const SORTABLE = ['status', 'submitted_at', 'created_at', 'updated_at'];
+
+    public const LOCKED_STATUSES = ['submitted', 'under_review', 'reserved', 'paid'];
+
     protected static function booted(): void
     {
-        // Clean up document files when an application is deleted directly
-        // (project deletion is handled by the Project model).
+
         static::deleting(function (IncentiveApplication $application) {
             $paths = $application->documents()->pluck('file_path');
 
@@ -29,7 +33,6 @@ class IncentiveApplication extends Model
         });
     }
 
-    /** Ordered keys of the multi-step application form. */
     public const STEP_KEYS = ['eligibility', 'system', 'documents', 'review'];
 
     protected $fillable = [
@@ -73,9 +76,27 @@ class IncentiveApplication extends Model
         return $this->morphMany(Note::class, 'notable');
     }
 
-    /**
-     * Limit to applications whose parent project is visible to the user.
-     */
+    public function scopeFilter(Builder $query, Request $request): Builder
+    {
+        return $query
+            ->when($request->filled('status'), fn ($q) => $q->whereIn('status', array_filter(explode(',', (string) $request->query('status')))))
+            ->when($request->filled('project_id'), fn ($q) => $q->where('project_id', $request->integer('project_id')))
+            ->when($request->filled('contractor_id'), fn ($q) => $q->whereHas('project', fn ($p) => $p->where('contractor_id', $request->integer('contractor_id'))))
+            ->when($request->filled('region'), fn ($q) => $q->whereHas('project.contractor', fn ($c) => $c->where('region', $request->query('region'))))
+            ->when($request->filled('search'), function ($q) use ($request) {
+                $term = '%'.$request->query('search').'%';
+                $q->whereHas('project', fn ($p) => $p->where('name', 'like', $term)
+                    ->orWhereHas('contractor', fn ($c) => $c->where('company_name', 'like', $term)));
+            })
+            ->when($request->filled('submitted_from'), fn ($q) => $q->whereDate('submitted_at', '>=', $request->date('submitted_from')))
+            ->when($request->filled('submitted_to'), fn ($q) => $q->whereDate('submitted_at', '<=', $request->date('submitted_to')));
+    }
+
+    public function isLocked(): bool
+    {
+        return in_array($this->status, self::LOCKED_STATUSES, true);
+    }
+
     public function scopeVisibleTo(Builder $query, User $user): Builder
     {
         if ($user->isAdmin()) {
@@ -85,25 +106,16 @@ class IncentiveApplication extends Model
         return $query->whereHas('project', fn (Builder $q) => $q->visibleTo($user));
     }
 
-    /**
-     * @return list<string> step keys that have been marked complete
-     */
     public function completedStepKeys(): array
     {
         return $this->steps()->whereNotNull('completed_at')->pluck('step_key')->all();
     }
 
-    /**
-     * @return list<string> step keys still outstanding, in order
-     */
     public function missingStepKeys(): array
     {
         return array_values(array_diff(self::STEP_KEYS, $this->completedStepKeys()));
     }
 
-    /**
-     * Point `current_step` at the first incomplete step (null when all done).
-     */
     public function recomputeCurrentStep(): void
     {
         $missing = $this->missingStepKeys();

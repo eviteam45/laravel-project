@@ -1,36 +1,38 @@
 <script setup lang="ts">
+import { toTypedSchema } from '@vee-validate/zod'
+import { useForm } from 'vee-validate'
+import { registerSchema } from '~/schemas/auth'
+
 const { register } = useAuth()
+const general = ref('')
 
-const form = reactive({
-  name: '',
-  email: '',
-  password: '',
-  password_confirmation: '',
-  role: 'customer' as 'contractor' | 'customer',
-  phone: '',
-  company_name: '',
-  address: '',
+const { defineField, handleSubmit, errors, isSubmitting, setErrors } = useForm({
+  validationSchema: toTypedSchema(registerSchema),
+  initialValues: {
+    name: '', email: '', password: '', password_confirmation: '',
+    role: 'customer', phone: '', company_name: '', address: '',
+  },
 })
-const errors = ref<Record<string, string[]>>({})
-const error = ref('')
-const loading = ref(false)
+const [name, nameAttrs] = defineField('name')
+const [email, emailAttrs] = defineField('email')
+const [password, passwordAttrs] = defineField('password')
+const [passwordConfirmation, passwordConfirmationAttrs] = defineField('password_confirmation')
+const [role] = defineField('role')
+const [phone, phoneAttrs] = defineField('phone')
+const [companyName, companyNameAttrs] = defineField('company_name')
+const [address, addressAttrs] = defineField('address')
 
-async function onSubmit() {
-  error.value = ''
-  errors.value = {}
-  loading.value = true
+const onSubmit = handleSubmit(async (values) => {
+  general.value = ''
   try {
-    await register({ ...form })
+    await register(values)
     await navigateTo('/')
   }
   catch (e: any) {
-    if (e?.data?.errors) errors.value = e.data.errors
-    else error.value = e?.data?.message ?? 'Registration failed.'
+    if (e?.data?.errors) setErrors(mapServerErrors(e.data.errors))
+    else general.value = e?.data?.message ?? 'Registration failed.'
   }
-  finally {
-    loading.value = false
-  }
-}
+})
 </script>
 
 <template>
@@ -44,39 +46,37 @@ async function onSubmit() {
       </p>
 
       <p
-        v-if="error"
+        v-if="general"
         class="field-error mb-3"
       >
-        {{ error }}
+        {{ general }}
       </p>
 
       <form
         class="space-y-4"
-        @submit.prevent="onSubmit"
+        @submit="onSubmit"
       >
         <div>
           <span class="label">I am a…</span>
           <div class="grid grid-cols-2 gap-2">
             <label
               class="flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm"
-              :class="form.role === 'customer' ? 'border-emerald-500 bg-emerald-50' : 'border-gray-300'"
+              :class="role === 'customer' ? 'border-emerald-500 bg-emerald-50' : 'border-gray-300'"
             >
               <input
-                v-model="form.role"
+                v-model="role"
                 type="radio"
                 value="customer"
-                class="text-emerald-600"
               > Customer
             </label>
             <label
               class="flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm"
-              :class="form.role === 'contractor' ? 'border-emerald-500 bg-emerald-50' : 'border-gray-300'"
+              :class="role === 'contractor' ? 'border-emerald-500 bg-emerald-50' : 'border-gray-300'"
             >
               <input
-                v-model="form.role"
+                v-model="role"
                 type="radio"
                 value="contractor"
-                class="text-emerald-600"
               > Contractor
             </label>
           </div>
@@ -89,17 +89,17 @@ async function onSubmit() {
           >Name</label>
           <input
             id="name"
-            v-model="form.name"
+            v-model="name"
+            v-bind="nameAttrs"
             class="input"
             type="text"
-            required
             autocomplete="name"
           >
           <p
             v-if="errors.name"
             class="field-error"
           >
-            {{ errors.name[0] }}
+            {{ errors.name }}
           </p>
         </div>
 
@@ -110,28 +110,29 @@ async function onSubmit() {
           >Email</label>
           <input
             id="email"
-            v-model="form.email"
+            v-model="email"
+            v-bind="emailAttrs"
             class="input"
             type="email"
-            required
             autocomplete="email"
           >
           <p
             v-if="errors.email"
             class="field-error"
           >
-            {{ errors.email[0] }}
+            {{ errors.email }}
           </p>
         </div>
 
-        <div v-if="form.role === 'contractor'">
+        <div v-if="role === 'contractor'">
           <label
             for="company_name"
             class="label"
           >Company name</label>
           <input
             id="company_name"
-            v-model="form.company_name"
+            v-model="companyName"
+            v-bind="companyNameAttrs"
             class="input"
             type="text"
           >
@@ -139,18 +140,19 @@ async function onSubmit() {
             v-if="errors.company_name"
             class="field-error"
           >
-            {{ errors.company_name[0] }}
+            {{ errors.company_name }}
           </p>
         </div>
 
-        <div v-if="form.role === 'customer'">
+        <div v-if="role === 'customer'">
           <label
             for="address"
             class="label"
           >Address</label>
           <input
             id="address"
-            v-model="form.address"
+            v-model="address"
+            v-bind="addressAttrs"
             class="input"
             type="text"
           >
@@ -163,7 +165,8 @@ async function onSubmit() {
           >Phone</label>
           <input
             id="phone"
-            v-model="form.phone"
+            v-model="phone"
+            v-bind="phoneAttrs"
             class="input"
             type="tel"
           >
@@ -177,17 +180,17 @@ async function onSubmit() {
             >Password</label>
             <input
               id="password"
-              v-model="form.password"
+              v-model="password"
+              v-bind="passwordAttrs"
               class="input"
               type="password"
-              required
               autocomplete="new-password"
             >
             <p
               v-if="errors.password"
               class="field-error"
             >
-              {{ errors.password[0] }}
+              {{ errors.password }}
             </p>
           </div>
           <div>
@@ -197,27 +200,35 @@ async function onSubmit() {
             >Confirm</label>
             <input
               id="password_confirmation"
-              v-model="form.password_confirmation"
+              v-model="passwordConfirmation"
+              v-bind="passwordConfirmationAttrs"
               class="input"
               type="password"
-              required
               autocomplete="new-password"
             >
+            <p
+              v-if="errors.password_confirmation"
+              class="field-error"
+            >
+              {{ errors.password_confirmation }}
+            </p>
           </div>
         </div>
 
         <button
           type="submit"
           class="btn btn-primary w-full"
-          :disabled="loading"
+          :disabled="isSubmitting"
         >
-          {{ loading ? 'Creating…' : 'Register' }}
+          {{ isSubmitting ? 'Creating…' : 'Register' }}
         </button>
       </form>
     </div>
 
     <p class="mt-4 text-center text-sm text-gray-500">
-      Already have an account? <NuxtLink to="/login">Log in</NuxtLink>
+      Already have an account? <NuxtLink to="/login">
+        Log in
+      </NuxtLink>
     </p>
   </div>
 </template>

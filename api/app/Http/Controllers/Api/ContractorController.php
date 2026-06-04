@@ -2,26 +2,30 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\HandlesIndexQueries;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreContractorRequest;
+use App\Http\Requests\UpdateContractorRequest;
 use App\Http\Resources\ContractorResource;
 use App\Models\Contractor;
-use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use OpenApi\Attributes as OA;
 
-/**
- * Admin-only contractor management (authorization via ContractorPolicy::before).
- */
 class ContractorController extends Controller
 {
-    /**
-     * Lightweight contractor list (id + company) for the admin project-create picker.
-     */
+    use HandlesIndexQueries;
+
+    #[OA\Get(
+        path: '/contractors/options',
+        tags: ['Contractors'],
+        summary: 'Lightweight contractor picker list (admin)',
+        security: [['bearerAuth' => []]],
+        parameters: [new OA\Parameter(name: 'search', in: 'query', schema: new OA\Schema(type: 'string'))],
+        responses: [new OA\Response(response: 200, description: '[{id, company_name}]')]
+    )]
     public function options(Request $request): JsonResponse
     {
         $this->authorize('viewAny', Contractor::class);
@@ -35,6 +39,18 @@ class ContractorController extends Controller
         return response()->json(['data' => $contractors]);
     }
 
+    #[OA\Get(
+        path: '/contractors',
+        tags: ['Contractors'],
+        summary: 'List contractors (admin only)',
+        security: [['bearerAuth' => []]],
+        parameters: [
+            new OA\Parameter(name: 'search', in: 'query', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'region', in: 'query', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string')),
+        ],
+        responses: [new OA\Response(response: 200, description: 'Paginated contractors')]
+    )]
     public function index(Request $request): AnonymousResourceCollection
     {
         $this->authorize('viewAny', Contractor::class);
@@ -42,51 +58,45 @@ class ContractorController extends Controller
         $contractors = Contractor::query()
             ->with('user:id,name,email')
             ->withCount('projects')
-            ->when($request->filled('search'), fn ($q) => $q->where('company_name', 'like', '%'.$request->query('search').'%'))
-            ->when($request->filled('region'), fn ($q) => $q->where('region', $request->query('region')))
-            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->query('status')))
+            ->filter($request)
             ->latest();
 
-        $perPage = min(max((int) $request->query('per_page', 15), 1), 100);
-
-        return ContractorResource::collection($contractors->paginate($perPage)->withQueryString());
+        return ContractorResource::collection($this->paginated($contractors, $request));
     }
 
-    public function store(Request $request): ContractorResource
+    #[OA\Post(
+        path: '/contractors',
+        tags: ['Contractors'],
+        summary: 'Provision a contractor + user account (admin only)',
+        security: [['bearerAuth' => []]],
+        requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(
+            required: ['name', 'email', 'password', 'company_name'],
+            properties: [
+                new OA\Property(property: 'name', type: 'string'),
+                new OA\Property(property: 'email', type: 'string', format: 'email'),
+                new OA\Property(property: 'password', type: 'string', format: 'password'),
+                new OA\Property(property: 'company_name', type: 'string'),
+                new OA\Property(property: 'region', type: 'string'),
+                new OA\Property(property: 'status', type: 'string', enum: ['active', 'inactive', 'pending']),
+            ]
+        )),
+        responses: [new OA\Response(response: 201, description: 'Created')]
+    )]
+    public function store(StoreContractorRequest $request): ContractorResource
     {
-        $this->authorize('create', Contractor::class);
-
-        $data = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
-            'password' => ['required', 'string', 'min:8'],
-            'company_name' => ['required', 'string', 'max:255'],
-            'license_no' => ['nullable', 'string', 'max:100'],
-            'phone' => ['nullable', 'string', 'max:50'],
-            'region' => ['nullable', 'string', 'max:255'],
-            'status' => ['nullable', Rule::in(['active', 'inactive', 'pending'])],
-        ]);
-
-        $contractor = DB::transaction(function () use ($data) {
-            $user = User::create([
-                'name' => $data['name'],
-                'email' => $data['email'],
-                'password' => Hash::make($data['password']),
-                'role' => 'contractor',
-            ]);
-
-            return $user->contractor()->create([
-                'company_name' => $data['company_name'],
-                'license_no' => $data['license_no'] ?? null,
-                'phone' => $data['phone'] ?? null,
-                'region' => $data['region'] ?? null,
-                'status' => $data['status'] ?? 'active',
-            ]);
-        });
+        $contractor = Contractor::provision($request->validated());
 
         return new ContractorResource($contractor->load('user:id,name,email'));
     }
 
+    #[OA\Get(
+        path: '/contractors/{contractor}',
+        tags: ['Contractors'],
+        summary: 'Show a contractor (admin only)',
+        security: [['bearerAuth' => []]],
+        parameters: [new OA\Parameter(name: 'contractor', in: 'path', required: true, schema: new OA\Schema(type: 'integer'))],
+        responses: [new OA\Response(response: 200, description: 'Contractor')]
+    )]
     public function show(Contractor $contractor): ContractorResource
     {
         $this->authorize('view', $contractor);
@@ -94,23 +104,37 @@ class ContractorController extends Controller
         return new ContractorResource($contractor->load('user:id,name,email')->loadCount('projects'));
     }
 
-    public function update(Request $request, Contractor $contractor): ContractorResource
+    #[OA\Put(
+        path: '/contractors/{contractor}',
+        tags: ['Contractors'],
+        summary: 'Update a contractor (admin only)',
+        security: [['bearerAuth' => []]],
+        parameters: [new OA\Parameter(name: 'contractor', in: 'path', required: true, schema: new OA\Schema(type: 'integer'))],
+        requestBody: new OA\RequestBody(content: new OA\JsonContent(properties: [
+            new OA\Property(property: 'company_name', type: 'string'),
+            new OA\Property(property: 'region', type: 'string'),
+            new OA\Property(property: 'status', type: 'string', enum: ['active', 'inactive', 'pending']),
+        ])),
+        responses: [new OA\Response(response: 200, description: 'Updated')]
+    )]
+    public function update(UpdateContractorRequest $request, Contractor $contractor): ContractorResource
     {
-        $this->authorize('update', $contractor);
-
-        $data = $request->validate([
-            'company_name' => ['sometimes', 'string', 'max:255'],
-            'license_no' => ['nullable', 'string', 'max:100'],
-            'phone' => ['nullable', 'string', 'max:50'],
-            'region' => ['nullable', 'string', 'max:255'],
-            'status' => ['sometimes', Rule::in(['active', 'inactive', 'pending'])],
-        ]);
-
-        $contractor->update($data);
+        $contractor->update($request->validated());
 
         return new ContractorResource($contractor->load('user:id,name,email'));
     }
 
+    #[OA\Delete(
+        path: '/contractors/{contractor}',
+        tags: ['Contractors'],
+        summary: 'Delete a contractor (admin only; blocked if it has projects)',
+        security: [['bearerAuth' => []]],
+        parameters: [new OA\Parameter(name: 'contractor', in: 'path', required: true, schema: new OA\Schema(type: 'integer'))],
+        responses: [
+            new OA\Response(response: 200, description: 'Deleted'),
+            new OA\Response(response: 422, description: 'Has projects'),
+        ]
+    )]
     public function destroy(Contractor $contractor): JsonResponse
     {
         $this->authorize('delete', $contractor);
@@ -121,11 +145,7 @@ class ContractorController extends Controller
             ]);
         }
 
-        DB::transaction(function () use ($contractor) {
-            $userId = $contractor->user_id;
-            $contractor->delete();
-            User::whereKey($userId)->delete();
-        });
+        $contractor->deleteWithUser();
 
         return response()->json(['message' => 'Contractor deleted.']);
     }

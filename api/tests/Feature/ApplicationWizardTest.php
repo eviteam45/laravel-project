@@ -59,7 +59,7 @@ class ApplicationWizardTest extends TestCase
 
     public function test_completing_a_step_enforces_its_validation_rules(): void
     {
-        $this->saveStep('eligibility', ['owns_property' => true]) // missing required fields
+        $this->saveStep('eligibility', ['owns_property' => true])
             ->assertStatus(422)
             ->assertJsonValidationErrors(['data.utility_provider', 'data.average_monthly_bill']);
     }
@@ -72,7 +72,6 @@ class ApplicationWizardTest extends TestCase
             'average_monthly_bill' => 180,
         ])->assertSuccessful();
 
-        // current_step should now point at the next incomplete step ('system').
         $this->assertSame('system', $this->application->fresh()->current_step);
     }
 
@@ -91,7 +90,7 @@ class ApplicationWizardTest extends TestCase
 
     public function test_the_customer_applicant_can_also_complete_steps(): void
     {
-        // Attach a customer (with a user) to this application's project.
+
         $customerUser = User::factory()->customer()->create();
         $customer = Customer::factory()->create(['user_id' => $customerUser->id]);
         $this->application->project->update(['customer_id' => $customer->id]);
@@ -108,7 +107,6 @@ class ApplicationWizardTest extends TestCase
             'complete' => true,
         ])->assertSuccessful();
 
-        // Customer edits also advance the workflow started → in_progress.
         $this->assertSame('in_progress', $this->application->fresh()->status);
     }
 
@@ -125,10 +123,8 @@ class ApplicationWizardTest extends TestCase
             ->assertJsonPath('data.type', 'proof')
             ->assertJsonStructure(['data' => ['id', 'file_name', 'download_url']]);
 
-        // The file is stored on the private disk.
         $this->assertCount(1, Storage::disk('local')->allFiles());
 
-        // The signed URL streams the file.
         $url = $upload->json('data.download_url');
         $path = parse_url($url, PHP_URL_PATH).'?'.parse_url($url, PHP_URL_QUERY);
         $this->get($path)->assertSuccessful();
@@ -136,7 +132,7 @@ class ApplicationWizardTest extends TestCase
 
     public function test_submitting_is_blocked_until_all_steps_and_a_document_are_present(): void
     {
-        // Nothing completed yet.
+
         $this->postJson("/api/applications/{$this->application->id}/submit")
             ->assertStatus(422)
             ->assertJsonValidationErrors('steps');
@@ -159,7 +155,6 @@ class ApplicationWizardTest extends TestCase
             'usable_capacity_kwh' => 13.5,
         ])->assertSuccessful();
 
-        // documents step requires an upload first.
         $this->postJson("/api/applications/{$this->application->id}/documents", [
             'file' => UploadedFile::fake()->create('proof.pdf', 120, 'application/pdf'),
             'type' => 'proof',
@@ -168,7 +163,6 @@ class ApplicationWizardTest extends TestCase
         $this->saveStep('documents', [])->assertSuccessful();
         $this->saveStep('review', ['accepted_terms' => true])->assertSuccessful();
 
-        // All steps complete → current_step is null.
         $this->assertNull($this->application->fresh()->current_step);
 
         $this->postJson("/api/applications/{$this->application->id}/submit")
@@ -177,7 +171,6 @@ class ApplicationWizardTest extends TestCase
 
         $this->assertNotNull($this->application->fresh()->submitted_at);
 
-        // Submitted applications are locked for editing.
         $this->saveStep('review', ['accepted_terms' => true])
             ->assertStatus(422)
             ->assertJsonValidationErrors('status');

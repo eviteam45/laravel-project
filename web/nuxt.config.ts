@@ -1,12 +1,11 @@
-// https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
 
-  modules: ['@nuxtjs/tailwindcss', '@nuxt/eslint'],
+  modules: ['@nuxtjs/tailwindcss', '@nuxt/eslint', '@pinia/nuxt'],
   devtools: { enabled: true },
 
   runtimeConfig: {
     public: {
-      // Base URL of the Laravel API. Override with NUXT_PUBLIC_API_BASE.
+
       apiBase: 'http://localhost:8000/api',
     },
   },
@@ -14,7 +13,7 @@ export default defineNuxtConfig({
 
   eslint: {
     config: {
-      stylistic: true, // Prettier-style formatting rules via @stylistic
+      stylistic: true,
     },
   },
 })

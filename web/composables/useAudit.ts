@@ -1,6 +1,3 @@
-/**
- * Admin-only audit log API.
- */
 export function useAudit() {
   const api = useApi()
 

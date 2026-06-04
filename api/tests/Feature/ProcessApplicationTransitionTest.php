@@ -3,8 +3,12 @@
 namespace Tests\Feature;
 
 use App\Jobs\ProcessApplicationTransition;
+use App\Models\Contractor;
+use App\Models\Customer;
 use App\Models\IncentiveApplication;
 use App\Models\Notification;
+use App\Models\Project;
+use App\Models\User;
 use App\Notifications\IncentiveReservedNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification as NotificationFacade;
@@ -27,7 +31,6 @@ class ProcessApplicationTransitionTest extends TestCase
         $app = $this->reservedApplication();
         $customerUserId = $app->project->customer->user_id;
 
-        // Simulate the job running twice (e.g. a queue retry).
         (new ProcessApplicationTransition($app->id, 'under_review', 'reserved'))->handle();
         (new ProcessApplicationTransition($app->id, 'under_review', 'reserved'))->handle();
 
@@ -46,6 +49,33 @@ class ProcessApplicationTransitionTest extends TestCase
         (new ProcessApplicationTransition($app->id, 'under_review', 'reserved'))->handle();
 
         NotificationFacade::assertSentTo($customerUser, IncentiveReservedNotification::class);
+    }
+
+    public function test_it_notifies_all_related_parties_except_the_actor(): void
+    {
+        $contractorUser = User::factory()->contractor()->create();
+        $contractor = Contractor::factory()->create(['user_id' => $contractorUser->id]);
+        $customerUser = User::factory()->customer()->create();
+        $customer = Customer::factory()->create(['user_id' => $customerUser->id]);
+        $project = Project::factory()->for($contractor)->for($customer)->create();
+        $application = IncentiveApplication::factory()->for($project)->create(['status' => 'submitted']);
+
+        $actor = User::factory()->admin()->create();
+        $otherAdmin = User::factory()->admin()->create();
+
+        (new ProcessApplicationTransition($application->id, 'submitted', 'under_review', $actor->id))->handle();
+
+        foreach ([$contractorUser, $customerUser, $otherAdmin] as $u) {
+            $this->assertDatabaseHas('notifications', [
+                'user_id' => $u->id,
+                'type' => 'application_under_review',
+            ]);
+        }
+
+        $this->assertDatabaseMissing('notifications', [
+            'user_id' => $actor->id,
+            'type' => 'application_under_review',
+        ]);
     }
 
     public function test_marking_paid_settles_the_scheduled_payment(): void

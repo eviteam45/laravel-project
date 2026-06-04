@@ -40,7 +40,6 @@ class PlatformHardeningTest extends TestCase
 
         $application->delete();
 
-        // The model's deleting hook cleaned up the file (no orphan).
         Storage::disk('local')->assertMissing($path);
     }
 

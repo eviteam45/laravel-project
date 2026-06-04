@@ -33,9 +33,23 @@ class AuthTest extends TestCase
         $this->assertDatabaseMissing('contractors', ['user_id' => $userId]);
     }
 
+    public function test_a_customer_can_register_with_an_explicit_null_company_name(): void
+    {
+        $this->postJson('/api/register', [
+            'name' => 'Nadia Null',
+            'email' => 'nadia@example.com',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+            'role' => 'customer',
+            'company_name' => null,
+            'license_no' => null,
+            'region' => null,
+        ])->assertCreated()->assertJsonPath('user.role', 'customer');
+    }
+
     public function test_a_contractor_registration_requires_and_creates_a_company_profile(): void
     {
-        // company_name is required for contractors.
+
         $this->postJson('/api/register', [
             'name' => 'Bob Builder',
             'email' => 'bob@example.com',
@@ -149,7 +163,7 @@ class AuthTest extends TestCase
 
     public function test_login_is_rate_limited(): void
     {
-        // throttle:6,1 — the 7th attempt within a minute is blocked.
+
         for ($i = 0; $i < 6; $i++) {
             $this->postJson('/api/login', ['email' => 'nobody@example.com', 'password' => 'wrong'])
                 ->assertStatus(422);
@@ -169,11 +183,8 @@ class AuthTest extends TestCase
             ->assertOk()
             ->assertJsonPath('message', 'Logged out.');
 
-        // The token row is gone, so it can no longer authenticate.
         $this->assertDatabaseCount('personal_access_tokens', 0);
 
-        // Clear the guard's cached user so the next call re-resolves the token
-        // from scratch (in production each request is a fresh container).
         $this->app['auth']->forgetGuards();
 
         $this->withHeader('Authorization', 'Bearer '.$token)
