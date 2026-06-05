@@ -6,10 +6,12 @@ use App\Http\Requests\LoginRequest;
 use App\Http\Requests\RegisterRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
+use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Validation\ValidationException;
 use OpenApi\Attributes as OA;
 
@@ -113,6 +115,71 @@ class AuthController extends Controller
             'user' => new UserResource($user),
             'token' => $token,
         ]);
+    }
+
+    #[OA\Post(
+        path: '/forgot-password',
+        tags: ['Auth'],
+        summary: 'Request a password reset link',
+        requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(
+            required: ['email'],
+            properties: [new OA\Property(property: 'email', type: 'string', format: 'email')]
+        )),
+        responses: [new OA\Response(response: 200, description: 'Generic acknowledgement (no account enumeration)')]
+    )]
+    public function forgotPassword(Request $request): JsonResponse
+    {
+        $request->validate(['email' => ['required', 'email']]);
+
+        Password::sendResetLink($request->only('email'));
+
+        return response()->json([
+            'message' => 'If an account matches that email, a reset link has been sent.',
+        ]);
+    }
+
+    #[OA\Post(
+        path: '/reset-password',
+        tags: ['Auth'],
+        summary: 'Reset a password using a token from the reset email',
+        requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(
+            required: ['token', 'email', 'password', 'password_confirmation'],
+            properties: [
+                new OA\Property(property: 'token', type: 'string'),
+                new OA\Property(property: 'email', type: 'string', format: 'email'),
+                new OA\Property(property: 'password', type: 'string', format: 'password', minLength: 8),
+                new OA\Property(property: 'password_confirmation', type: 'string', format: 'password'),
+            ]
+        )),
+        responses: [
+            new OA\Response(response: 200, description: 'Password reset'),
+            new OA\Response(response: 422, description: 'Invalid/expired token or validation error'),
+        ]
+    )]
+    public function resetPassword(Request $request): JsonResponse
+    {
+        $request->validate([
+            'token' => ['required', 'string'],
+            'email' => ['required', 'email'],
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
+        ]);
+
+        $status = Password::reset(
+            $request->only('email', 'password', 'password_confirmation', 'token'),
+            function (User $user, string $password) {
+                $user->forceFill(['password' => Hash::make($password)])->save();
+
+                $user->tokens()->delete();
+
+                event(new PasswordReset($user));
+            },
+        );
+
+        if ($status !== Password::PASSWORD_RESET) {
+            throw ValidationException::withMessages(['email' => [__($status)]]);
+        }
+
+        return response()->json(['message' => 'Your password has been reset. Please log in.']);
     }
 
     #[OA\Get(

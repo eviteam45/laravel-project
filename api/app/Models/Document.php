@@ -20,13 +20,16 @@ class Document extends Model
         'uploaded_by',
     ];
 
-    public const DISK = 'local';
+    public static function disk(): string
+    {
+        return config('documents.disk');
+    }
 
     protected static function booted(): void
     {
 
         static::deleted(function (Document $document) {
-            Storage::disk(self::DISK)->delete($document->file_path);
+            Storage::disk(self::disk())->delete($document->file_path);
         });
     }
 

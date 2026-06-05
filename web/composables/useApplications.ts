@@ -1,12 +1,22 @@
+import type {
+  ApplicationStep,
+  DocumentFile,
+  IncentiveApplication,
+  MessageResponse,
+  Paginated,
+  Resource,
+} from '~/types'
+import { z } from 'zod'
+
 export function useApplications() {
   const api = useApi()
 
   return {
-    list: (params: Record<string, any> = {}) => api<any>('/applications', { params }),
-    get: (id: number | string) => api<any>(`/applications/${id}`),
+    list: (params: Record<string, unknown> = {}) => api<Paginated<IncentiveApplication>>('/applications', { params }),
+    get: (id: number | string) => api<Resource<IncentiveApplication>>(`/applications/${id}`),
 
-    saveStep: (id: number | string, stepKey: string, fields: Record<string, any>, complete: boolean) =>
-      api<any>(`/applications/${id}/steps/${stepKey}`, {
+    saveStep: (id: number | string, stepKey: string, fields: Record<string, unknown>, complete: boolean) =>
+      api<Resource<ApplicationStep>>(`/applications/${id}/steps/${stepKey}`, {
         method: 'PUT',
         body: { data: fields, complete },
       }),
@@ -15,17 +25,17 @@ export function useApplications() {
       const form = new FormData()
       form.append('file', file)
       form.append('type', type)
-      return api<any>(`/applications/${id}/documents`, { method: 'POST', body: form })
+      return api<Resource<DocumentFile>>(`/applications/${id}/documents`, { method: 'POST', body: form })
     },
 
     deleteDocument: (documentId: number | string) =>
-      api<any>(`/documents/${documentId}`, { method: 'DELETE' }),
+      api<MessageResponse>(`/documents/${documentId}`, { method: 'DELETE' }),
 
     submit: (id: number | string) =>
-      api<any>(`/applications/${id}/submit`, { method: 'POST' }),
+      api<Resource<IncentiveApplication>>(`/applications/${id}/submit`, { method: 'POST' }),
 
-    transition: (id: number | string, to: string, extra: Record<string, any> = {}) =>
-      api<any>(`/applications/${id}/transition`, { method: 'POST', body: { to, ...extra } }),
+    transition: (id: number | string, to: string, extra: Record<string, unknown> = {}) =>
+      api<Resource<IncentiveApplication>>(`/applications/${id}/transition`, { method: 'POST', body: { to, ...extra } }),
   }
 }
 
@@ -51,6 +61,65 @@ export function fieldErrors(e: any): Record<string, string> {
   const errors = e?.data?.errors ?? {}
   for (const [key, messages] of Object.entries(errors)) {
     out[key.replace(/^data\./, '')] = (messages as string[])[0]
+  }
+  return out
+}
+
+const requiredString = (msg: string, max = 255) =>
+  z.string({ required_error: msg, invalid_type_error: msg })
+    .trim()
+    .min(1, msg)
+    .max(max, `Must be ${max} characters or fewer.`)
+
+const requiredNumber = (msg: string, opts: { min?: number, int?: boolean } = {}) => {
+  let base = z.number({ required_error: msg, invalid_type_error: msg })
+  if (opts.int) base = base.int(msg)
+  if (opts.min !== undefined) base = base.min(opts.min, `Must be ${opts.min} or more.`)
+  return z.preprocess(
+    v => (v === '' || v === null || v === undefined ? undefined : Number(v)),
+    base,
+  )
+}
+
+export const APPLICATION_STEP_SCHEMAS: Record<string, z.ZodTypeAny> = {
+  eligibility: z.object({
+    owns_property: z.boolean(),
+    utility_provider: requiredString('Utility provider is required.'),
+    average_monthly_bill: requiredNumber('Average monthly bill is required.', { min: 0 }),
+  }),
+  system: z.object({
+    battery_oem: requiredString('OEM is required.'),
+    battery_model: requiredString('Model is required.'),
+    quantity: requiredNumber('Quantity must be at least 1.', { min: 1, int: true }),
+    usable_capacity_kwh: requiredNumber('Usable capacity is required.', { min: 0 }),
+  }),
+  banking: z.object({
+    account_holder_name: requiredString('Account holder is required.'),
+    bank_name: requiredString('Bank name is required.'),
+    routing_number: z.string({ required_error: 'Routing number must be 9 digits.' })
+      .regex(/^\d{9}$/, 'Routing number must be 9 digits.'),
+    account_number: z.string({ required_error: 'Account number must be 4–17 digits.' })
+      .regex(/^\d{4,17}$/, 'Account number must be 4–17 digits.'),
+    account_type: z.enum(['checking', 'savings'], {
+      errorMap: () => ({ message: 'Select an account type.' }),
+    }),
+  }),
+  review: z.object({
+    accepted_terms: z.boolean().refine(v => v === true, 'You must confirm the information is accurate.'),
+  }),
+}
+
+export function validateStep(key: string, data: Record<string, any>): Record<string, string> {
+  const schema = APPLICATION_STEP_SCHEMAS[key]
+  if (!schema) return {}
+
+  const result = schema.safeParse(data)
+  if (result.success) return {}
+
+  const out: Record<string, string> = {}
+  for (const issue of result.error.issues) {
+    const field = String(issue.path[0] ?? '')
+    if (field && !(field in out)) out[field] = issue.message
   }
   return out
 }

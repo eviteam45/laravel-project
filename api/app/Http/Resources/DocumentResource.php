@@ -20,7 +20,7 @@ class DocumentResource extends JsonResource
             'download_url' => URL::temporarySignedRoute(
                 'documents.download',
                 now()->addMinutes(30),
-                ['document' => $this->id],
+                ['document' => $this->id, 'u' => $request->user()?->id],
             ),
         ];
     }

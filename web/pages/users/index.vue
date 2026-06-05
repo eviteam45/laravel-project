@@ -11,7 +11,7 @@ const filters = reactive({ search: '', role: '', page: 1 })
 const error = ref('')
 const savingId = ref<number | null>(null)
 
-const { data, pending, refresh } = await useAsyncData(
+const { data, pending, error: loadError, refresh } = await useAsyncData(
   'users',
   () => list({ search: filters.search || undefined, role: filters.role || undefined, page: filters.page }),
   { watch: [() => filters.role, () => filters.page] },
@@ -100,85 +100,85 @@ function roleBadge(role: string) {
       </button>
     </form>
 
-    <p
-      v-if="pending"
-      class="text-gray-500"
+    <AsyncState
+      :pending="pending"
+      :error="loadError"
+      error-text="Couldn't load users."
+      @retry="refresh"
     >
-      Loading…
-    </p>
-
-    <div
-      v-else-if="users.length"
-      class="card overflow-hidden !p-0"
-    >
-      <table class="w-full text-sm">
-        <thead class="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
-          <tr>
-            <th class="px-4 py-3 font-medium">
-              Name
-            </th>
-            <th class="px-4 py-3 font-medium">
-              Email
-            </th>
-            <th class="px-4 py-3 font-medium">
-              Role
-            </th>
-            <th class="px-4 py-3 font-medium">
-              Last login
-            </th>
-            <th class="px-4 py-3 font-medium">
-              Change role
-            </th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-100">
-          <tr
-            v-for="u in users"
-            :key="u.id"
-            class="hover:bg-gray-50"
-          >
-            <td class="px-4 py-3 font-medium text-gray-900">
-              {{ u.name }}
-            </td>
-            <td class="px-4 py-3 text-gray-600">
-              {{ u.email }}
-            </td>
-            <td class="px-4 py-3">
-              <span
-                class="badge"
-                :class="roleBadge(u.role)"
-              >{{ u.role }}</span>
-            </td>
-            <td class="px-4 py-3 text-gray-500">
-              {{ u.last_login_at ? new Date(u.last_login_at).toLocaleDateString() : '—' }}
-            </td>
-            <td class="px-4 py-3">
-              <select
-                class="input w-auto py-1 text-sm"
-                :value="u.role"
-                :disabled="savingId === u.id"
-                @change="changeRole(u.id, ($event.target as HTMLSelectElement).value as Role)"
-              >
-                <option
-                  v-for="r in ROLES"
-                  :key="r"
-                  :value="r"
+      <div
+        v-if="users.length"
+        class="card overflow-hidden !p-0"
+      >
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+            <tr>
+              <th class="px-4 py-3 font-medium">
+                Name
+              </th>
+              <th class="px-4 py-3 font-medium">
+                Email
+              </th>
+              <th class="px-4 py-3 font-medium">
+                Role
+              </th>
+              <th class="px-4 py-3 font-medium">
+                Last login
+              </th>
+              <th class="px-4 py-3 font-medium">
+                Change role
+              </th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <tr
+              v-for="u in users"
+              :key="u.id"
+              class="hover:bg-gray-50"
+            >
+              <td class="px-4 py-3 font-medium text-gray-900">
+                {{ u.name }}
+              </td>
+              <td class="px-4 py-3 text-gray-600">
+                {{ u.email }}
+              </td>
+              <td class="px-4 py-3">
+                <span
+                  class="badge"
+                  :class="roleBadge(u.role)"
+                >{{ u.role }}</span>
+              </td>
+              <td class="px-4 py-3 text-gray-500">
+                {{ u.last_login_at ? new Date(u.last_login_at).toLocaleDateString() : '—' }}
+              </td>
+              <td class="px-4 py-3">
+                <select
+                  class="input w-auto py-1 text-sm"
+                  :value="u.role"
+                  :disabled="savingId === u.id"
+                  @change="changeRole(u.id, ($event.target as HTMLSelectElement).value as Role)"
                 >
-                  {{ r }}
-                </option>
-              </select>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+                  <option
+                    v-for="r in ROLES"
+                    :key="r"
+                    :value="r"
+                  >
+                    {{ r }}
+                  </option>
+                </select>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
-    <div
-      v-else
-      class="card text-center text-gray-500"
-    >
-      No users found.
-    </div>
+      <div
+        v-else
+        class="card text-center text-gray-500"
+      >
+        No users found.
+      </div>
+    </AsyncState>
 
     <div
       v-if="meta && meta.last_page > 1"

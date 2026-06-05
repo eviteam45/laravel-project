@@ -9,34 +9,18 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 
 class Project extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     public const STATUSES = ['draft', 'submitted', 'in_review', 'approved', 'installed', 'closed', 'rejected'];
 
     public const SORTABLE = ['name', 'status', 'capacity_kw', 'install_date', 'created_at'];
 
     public const LOCKED_APPLICATION_STATUSES = ['submitted', 'under_review', 'reserved', 'paid'];
-
-    protected static function booted(): void
-    {
-
-        static::deleting(function (Project $project) {
-            $paths = $project->documents()->pluck('file_path');
-
-            if ($application = $project->application) {
-                $paths = $paths->merge($application->documents()->pluck('file_path'));
-            }
-
-            if ($paths->isNotEmpty()) {
-                Storage::disk(Document::DISK)->delete($paths->all());
-            }
-        });
-    }
 
     protected $fillable = [
         'name',

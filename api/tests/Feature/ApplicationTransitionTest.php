@@ -2,12 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\ProcessApplicationTransition;
 use App\Models\Contractor;
 use App\Models\Customer;
 use App\Models\IncentiveApplication;
 use App\Models\Project;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Bus;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -98,27 +100,26 @@ class ApplicationTransitionTest extends TestCase
             ->assertJsonValidationErrors('incentive_amount');
     }
 
-    public function test_a_transition_notifies_related_parties_synchronously(): void
+    public function test_a_transition_queues_the_side_effect_job_after_commit(): void
     {
+        Bus::fake();
         Sanctum::actingAs($this->admin);
 
         $this->transition(['to' => 'under_review'])->assertOk();
 
-        foreach ([$this->contractorUser, $this->customerUser] as $user) {
-            $this->assertDatabaseHas('notifications', [
-                'user_id' => $user->id,
-                'type' => 'application_under_review',
-            ]);
-        }
-
-        $this->assertDatabaseMissing('notifications', [
-            'user_id' => $this->admin->id,
-            'type' => 'application_under_review',
-        ]);
+        // Notifications/payments are produced by the queued job (covered by
+        // ProcessApplicationTransitionTest); here we assert it is enqueued.
+        Bus::assertDispatched(
+            ProcessApplicationTransition::class,
+            fn (ProcessApplicationTransition $job) => $job->applicationId === $this->application->id
+                && $job->to === 'under_review'
+                && $job->actorId === $this->admin->id,
+        );
     }
 
-    public function test_reserving_notifies_the_customer_and_schedules_a_payment(): void
+    public function test_reserving_persists_the_amount_and_queues_the_job(): void
     {
+        Bus::fake();
         $this->application->update(['status' => 'under_review']);
         Sanctum::actingAs($this->admin);
 
@@ -127,15 +128,10 @@ class ApplicationTransitionTest extends TestCase
             ->assertJsonPath('data.status', 'reserved')
             ->assertJsonPath('data.incentive_amount', '4200.00');
 
-        $this->assertDatabaseHas('notifications', [
-            'user_id' => $this->customerUser->id,
-            'type' => 'application_reserved',
-        ]);
-
-        $this->assertDatabaseHas('incentive_payments', [
-            'application_id' => $this->application->id,
-            'status' => 'scheduled',
-            'amount' => 4200,
-        ]);
+        Bus::assertDispatched(
+            ProcessApplicationTransition::class,
+            fn (ProcessApplicationTransition $job) => $job->applicationId === $this->application->id
+                && $job->to === 'reserved',
+        );
     }
 }

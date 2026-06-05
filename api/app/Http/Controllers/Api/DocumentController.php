@@ -8,15 +8,21 @@ use App\Http\Resources\DocumentResource;
 use App\Models\Document;
 use App\Models\IncentiveApplication;
 use App\Models\Project;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use OpenApi\Attributes as OA;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class DocumentController extends Controller
 {
-    private const DISK = 'local';
+    private function disk(): string
+    {
+        return config('documents.disk');
+    }
 
     #[OA\Post(
         path: '/applications/{application}/documents',
@@ -66,7 +72,7 @@ class DocumentController extends Controller
 
     private function upload(UploadDocumentRequest $request, Model $owner): DocumentResource
     {
-        $path = $request->file('file')->store("documents/{$owner->getTable()}/{$owner->getKey()}", self::DISK);
+        $path = $request->file('file')->store("documents/{$owner->getTable()}/{$owner->getKey()}", $this->disk());
 
         $documents = $owner->documents();
         $document = $documents->create([
@@ -88,11 +94,14 @@ class DocumentController extends Controller
             new OA\Response(response: 403, description: 'Invalid/expired signature'),
         ]
     )]
-    public function download(Document $document): StreamedResponse
+    public function download(Request $request, Document $document): StreamedResponse
     {
-        abort_unless(Storage::disk(self::DISK)->exists($document->file_path), 404);
+        $user = User::find($request->integer('u'));
+        abort_unless($user && Gate::forUser($user)->allows('view', $document), 403);
 
-        return Storage::disk(self::DISK)->download($document->file_path);
+        abort_unless(Storage::disk($this->disk())->exists($document->file_path), 404);
+
+        return Storage::disk($this->disk())->download($document->file_path);
     }
 
     #[OA\Delete(

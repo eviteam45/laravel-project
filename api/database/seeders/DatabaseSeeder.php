@@ -61,7 +61,7 @@ class DatabaseSeeder extends Seeder
     {
         $application = IncentiveApplication::factory()->for($project)->create();
 
-        foreach (['eligibility', 'documents', 'review', 'payment'] as $stepKey) {
+        foreach (IncentiveApplication::STEP_KEYS as $stepKey) {
             ApplicationStep::factory()->for($application, 'application')->create([
                 'step_key' => $stepKey,
                 'completed_at' => fake()->boolean(60) ? fake()->dateTimeBetween('-3 months') : null,

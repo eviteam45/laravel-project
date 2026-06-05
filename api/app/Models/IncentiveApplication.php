@@ -8,12 +8,12 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 
 class IncentiveApplication extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     public const STATUSES = ['started', 'in_progress', 'submitted', 'under_review', 'reserved', 'paid', 'rejected', 'withdrawn'];
 
@@ -21,19 +21,7 @@ class IncentiveApplication extends Model
 
     public const LOCKED_STATUSES = ['submitted', 'under_review', 'reserved', 'paid'];
 
-    protected static function booted(): void
-    {
-
-        static::deleting(function (IncentiveApplication $application) {
-            $paths = $application->documents()->pluck('file_path');
-
-            if ($paths->isNotEmpty()) {
-                Storage::disk(Document::DISK)->delete($paths->all());
-            }
-        });
-    }
-
-    public const STEP_KEYS = ['eligibility', 'system', 'documents', 'review'];
+    public const STEP_KEYS = ['eligibility', 'system', 'documents', 'banking', 'review'];
 
     protected $fillable = [
         'project_id',

@@ -17,7 +17,7 @@ async function onCreate(payload: Record<string, any>) {
   await refresh()
 }
 
-const { data, pending, refresh } = await useAsyncData(
+const { data, pending, error, refresh } = await useAsyncData(
   'projects',
   () =>
     list({
@@ -141,79 +141,79 @@ const meta = computed(() => data.value?.meta)
       </button>
     </form>
 
-    <p
-      v-if="pending"
-      class="text-gray-500"
+    <AsyncState
+      :pending="pending"
+      :error="error"
+      error-text="Couldn't load projects."
+      @retry="refresh"
     >
-      Loading…
-    </p>
+      <div
+        v-if="data?.data?.length"
+        class="card overflow-hidden !p-0"
+      >
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+            <tr>
+              <th
+                class="cursor-pointer select-none px-4 py-3 font-medium hover:text-gray-700"
+                @click="sortBy('name')"
+              >
+                Name{{ sortIcon('name') }}
+              </th>
+              <th
+                class="cursor-pointer select-none px-4 py-3 font-medium hover:text-gray-700"
+                @click="sortBy('status')"
+              >
+                Status{{ sortIcon('status') }}
+              </th>
+              <th
+                class="cursor-pointer select-none px-4 py-3 font-medium hover:text-gray-700"
+                @click="sortBy('capacity_kw')"
+              >
+                Capacity{{ sortIcon('capacity_kw') }}
+              </th>
+              <th class="px-4 py-3 font-medium">
+                Batteries
+              </th>
+              <th class="px-4 py-3" />
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <tr
+              v-for="p in data.data"
+              :key="p.id"
+              class="hover:bg-gray-50"
+            >
+              <td class="px-4 py-3 font-medium text-gray-900">
+                {{ p.name }}
+              </td>
+              <td class="px-4 py-3">
+                <span class="badge badge-blue">{{ p.status.replace('_', ' ') }}</span>
+              </td>
+              <td class="px-4 py-3 text-gray-600">
+                {{ p.capacity_kw ?? '—' }} kW
+              </td>
+              <td class="px-4 py-3 text-gray-600">
+                {{ p.battery_systems_count ?? 0 }}
+              </td>
+              <td class="px-4 py-3 text-right">
+                <NuxtLink
+                  :to="`/projects/${p.id}`"
+                  class="font-medium"
+                >View →</NuxtLink>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
-    <div
-      v-else-if="data?.data?.length"
-      class="card overflow-hidden !p-0"
-    >
-      <table class="w-full text-sm">
-        <thead class="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
-          <tr>
-            <th
-              class="cursor-pointer select-none px-4 py-3 font-medium hover:text-gray-700"
-              @click="sortBy('name')"
-            >
-              Name{{ sortIcon('name') }}
-            </th>
-            <th
-              class="cursor-pointer select-none px-4 py-3 font-medium hover:text-gray-700"
-              @click="sortBy('status')"
-            >
-              Status{{ sortIcon('status') }}
-            </th>
-            <th
-              class="cursor-pointer select-none px-4 py-3 font-medium hover:text-gray-700"
-              @click="sortBy('capacity_kw')"
-            >
-              Capacity{{ sortIcon('capacity_kw') }}
-            </th>
-            <th class="px-4 py-3 font-medium">
-              Batteries
-            </th>
-            <th class="px-4 py-3" />
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-100">
-          <tr
-            v-for="p in data.data"
-            :key="p.id"
-            class="hover:bg-gray-50"
-          >
-            <td class="px-4 py-3 font-medium text-gray-900">
-              {{ p.name }}
-            </td>
-            <td class="px-4 py-3">
-              <span class="badge badge-blue">{{ p.status.replace('_', ' ') }}</span>
-            </td>
-            <td class="px-4 py-3 text-gray-600">
-              {{ p.capacity_kw ?? '—' }} kW
-            </td>
-            <td class="px-4 py-3 text-gray-600">
-              {{ p.battery_systems_count ?? 0 }}
-            </td>
-            <td class="px-4 py-3 text-right">
-              <NuxtLink
-                :to="`/projects/${p.id}`"
-                class="font-medium"
-              >View →</NuxtLink>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div
-      v-else
-      class="card text-center text-gray-500"
-    >
-      No projects found.
-    </div>
+      <div
+        v-else
+        class="card text-center text-gray-500"
+      >
+        No projects found.
+      </div>
+    </AsyncState>
 
     <div
       v-if="meta && meta.last_page > 1"

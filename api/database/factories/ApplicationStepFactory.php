@@ -13,7 +13,7 @@ class ApplicationStepFactory extends Factory
 
         return [
             'application_id' => IncentiveApplication::factory(),
-            'step_key' => fake()->randomElement(['eligibility', 'documents', 'review', 'payment']),
+            'step_key' => fake()->randomElement(IncentiveApplication::STEP_KEYS),
             'data' => ['notes' => fake()->sentence(), 'valid' => fake()->boolean()],
             'completed_at' => $completed ? fake()->dateTimeBetween('-3 months') : null,
         ];

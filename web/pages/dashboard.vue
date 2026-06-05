@@ -1,30 +1,28 @@
 <script setup lang="ts">
+import { storeToRefs } from 'pinia'
 import { formatMoney } from '~/composables/useDashboard'
 
 const { user, fetchUser } = useAuth()
-const { stats, notifications, markAllRead } = useDashboard()
+const { stats } = useDashboard()
 
 if (!user.value) await fetchUser()
 
 const scope = computed(() => user.value?.id ?? 'guest')
 
-const { data: statsData } = await useAsyncData(
+const { data: statsData, pending: statsPending, error: statsError, refresh: refreshStats } = await useAsyncData(
   `dashboard-stats:${scope.value}`,
   () => stats(),
   { watch: [scope] },
 )
-const { data: notifData, refresh: refreshNotifs } = await useAsyncData(
-  `dashboard-notifs:${scope.value}`,
-  () => notifications(),
-  { watch: [scope] },
-)
+
+const notifStore = useNotificationsStore()
+const { items: notifs } = storeToRefs(notifStore)
+onMounted(() => notifStore.load())
 
 const s = computed(() => statsData.value)
-const notifs = computed(() => notifData.value?.data ?? [])
 
 async function clearNotifs() {
-  await markAllRead()
-  await refreshNotifs()
+  await notifStore.markAll()
 }
 
 function prettyType(type: string) {
@@ -157,9 +155,11 @@ function prettyType(type: string) {
     </div>
   </section>
 
-  <section v-else>
-    <p class="text-gray-500">
-      Loading…
-    </p>
-  </section>
+  <AsyncState
+    v-else
+    :pending="statsPending"
+    :error="statsError"
+    error-text="Couldn't load your dashboard."
+    @retry="refreshStats"
+  />
 </template>

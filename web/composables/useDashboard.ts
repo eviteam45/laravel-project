@@ -1,11 +1,13 @@
+import type { AppNotification, DashboardStats, Paginated, Resource } from '~/types'
+
 export function useDashboard() {
   const api = useApi()
 
   return {
-    stats: () => api<any>('/dashboard/stats'),
-    notifications: () => api<any>('/notifications'),
-    markAllRead: () => api<any>('/notifications/read-all', { method: 'POST' }),
-    markRead: (id: number | string) => api<any>(`/notifications/${id}/read`, { method: 'POST' }),
+    stats: () => api<DashboardStats>('/dashboard/stats'),
+    notifications: () => api<Paginated<AppNotification>>('/notifications'),
+    markAllRead: () => api<{ marked_read: number }>('/notifications/read-all', { method: 'POST' }),
+    markRead: (id: number | string) => api<Resource<AppNotification>>(`/notifications/${id}/read`, { method: 'POST' }),
   }
 }
 

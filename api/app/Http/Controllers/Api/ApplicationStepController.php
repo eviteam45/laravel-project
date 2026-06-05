@@ -18,7 +18,7 @@ class ApplicationStepController extends Controller
         security: [['bearerAuth' => []]],
         parameters: [
             new OA\Parameter(name: 'application', in: 'path', required: true, schema: new OA\Schema(type: 'integer')),
-            new OA\Parameter(name: 'stepKey', in: 'path', required: true, schema: new OA\Schema(type: 'string', enum: ['eligibility', 'system', 'documents', 'review'])),
+            new OA\Parameter(name: 'stepKey', in: 'path', required: true, schema: new OA\Schema(type: 'string', enum: ['eligibility', 'system', 'documents', 'banking', 'review'])),
         ],
         requestBody: new OA\RequestBody(content: new OA\JsonContent(properties: [
             new OA\Property(property: 'data', type: 'object'),

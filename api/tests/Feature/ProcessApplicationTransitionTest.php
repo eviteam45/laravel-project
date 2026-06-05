@@ -10,6 +10,7 @@ use App\Models\Notification;
 use App\Models\Project;
 use App\Models\User;
 use App\Notifications\IncentiveReservedNotification;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification as NotificationFacade;
 use Tests\TestCase;
@@ -76,6 +77,15 @@ class ProcessApplicationTransitionTest extends TestCase
             'user_id' => $actor->id,
             'type' => 'application_under_review',
         ]);
+    }
+
+    public function test_a_duplicate_payment_status_is_rejected_by_the_unique_index(): void
+    {
+        $app = $this->reservedApplication();
+        $app->payments()->create(['amount' => 100, 'status' => 'scheduled']);
+
+        $this->expectException(QueryException::class);
+        $app->payments()->create(['amount' => 200, 'status' => 'scheduled']);
     }
 
     public function test_marking_paid_settles_the_scheduled_payment(): void

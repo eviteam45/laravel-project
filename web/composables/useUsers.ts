@@ -1,12 +1,12 @@
-import type { Role } from '~/types'
+import type { Paginated, Resource, Role, User } from '~/types'
 
 export function useUsers() {
   const api = useApi()
 
   return {
-    list: (params: Record<string, any> = {}) => api<any>('/users', { params }),
+    list: (params: Record<string, unknown> = {}) => api<Paginated<User>>('/users', { params }),
     updateRole: (id: number | string, role: Role) =>
-      api<any>(`/users/${id}/role`, { method: 'PATCH', body: { role } }),
+      api<Resource<User>>(`/users/${id}/role`, { method: 'PATCH', body: { role } }),
   }
 }
 

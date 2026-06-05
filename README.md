@@ -134,7 +134,7 @@ npx nuxi typecheck               # TypeScript
 
 ## Architecture notes
 
-- **Auth** — Sanctum bearer tokens (24h expiry); rate-limited login/register; role-based (`admin`/`contractor`/`customer`).
+- **Auth** — Sanctum bearer tokens (24h expiry); rate-limited login/register + forgot/reset-password; role-based (`admin`/`contractor`/`customer`). Token storage is a deliberate tradeoff — see [docs/auth-token-storage.md](docs/auth-token-storage.md).
 - **Authorization** — Policies per resource; results are **role-scoped** (the same list endpoint returns different rows per role).
 - **Validation** — every write goes through a **Form Request** class (no inline validation); the Nuxt forms mirror those rules with Zod.
 - **List endpoints** — pagination + multi-field filters + whitelisted sort (stable tiebreaker) + search, all **eager-loaded (no N+1)**.

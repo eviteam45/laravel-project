@@ -8,6 +8,7 @@ use App\Models\IncentivePayment;
 use App\Models\Notification;
 use App\Models\Project;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -120,5 +121,23 @@ class DashboardTest extends TestCase
         Sanctum::actingAs($user);
 
         $this->postJson("/api/notifications/{$foreign->id}/read")->assertForbidden();
+    }
+
+    public function test_dashboard_stats_does_not_lazy_load_relations(): void
+    {
+        // Several applications across distinct projects (each with their own
+        // contractor/customer). If the recent_applications resource lazy-loaded
+        // project relations per row, this would be an N+1.
+        IncentiveApplication::factory(4)->create(['status' => 'submitted']);
+
+        $admin = User::factory()->admin()->create();
+        Sanctum::actingAs($admin);
+
+        Model::preventLazyLoading(true);
+        try {
+            $this->getJson('/api/dashboard/stats')->assertOk();
+        } finally {
+            Model::preventLazyLoading(false);
+        }
     }
 }

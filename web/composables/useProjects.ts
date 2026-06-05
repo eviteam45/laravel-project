@@ -1,3 +1,14 @@
+import type {
+  ContractorOption,
+  CustomerOption,
+  DocumentFile,
+  IncentiveApplication,
+  MessageResponse,
+  Paginated,
+  Project,
+  Resource,
+} from '~/types'
+
 interface ListParams {
   search?: string
   status?: string
@@ -12,28 +23,28 @@ export function useProjects() {
   const api = useApi()
 
   return {
-    list: (params: ListParams = {}) => api<any>('/projects', { params }),
-    get: (id: number | string) => api<any>(`/projects/${id}`),
-    create: (body: Record<string, any>) => api<any>('/projects', { method: 'POST', body }),
-    update: (id: number | string, body: Record<string, any>) =>
-      api<any>(`/projects/${id}`, { method: 'PUT', body }),
-    remove: (id: number | string) => api<any>(`/projects/${id}`, { method: 'DELETE' }),
+    list: (params: ListParams = {}) => api<Paginated<Project>>('/projects', { params }),
+    get: (id: number | string) => api<Resource<Project>>(`/projects/${id}`),
+    create: (body: Record<string, unknown>) => api<Resource<Project>>('/projects', { method: 'POST', body }),
+    update: (id: number | string, body: Record<string, unknown>) =>
+      api<Resource<Project>>(`/projects/${id}`, { method: 'PUT', body }),
+    remove: (id: number | string) => api<MessageResponse>(`/projects/${id}`, { method: 'DELETE' }),
     createApplication: (projectId: number | string) =>
-      api<any>('/applications', { method: 'POST', body: { project_id: projectId } }),
-    transition: (id: number | string, to: string, extra: Record<string, any> = {}) =>
-      api<any>(`/projects/${id}/transition`, { method: 'POST', body: { to, ...extra } }),
+      api<Resource<IncentiveApplication>>('/applications', { method: 'POST', body: { project_id: projectId } }),
+    transition: (id: number | string, to: string, extra: Record<string, unknown> = {}) =>
+      api<Resource<Project>>(`/projects/${id}/transition`, { method: 'POST', body: { to, ...extra } }),
     customerOptions: (search?: string) =>
-      api<any>('/customers/options', { params: search ? { search } : {} }),
+      api<Resource<CustomerOption[]>>('/customers/options', { params: search ? { search } : {} }),
     contractorOptions: (search?: string) =>
-      api<any>('/contractors/options', { params: search ? { search } : {} }),
+      api<Resource<ContractorOption[]>>('/contractors/options', { params: search ? { search } : {} }),
     uploadDocument: (projectId: number | string, file: File, type: string) => {
       const form = new FormData()
       form.append('file', file)
       form.append('type', type)
-      return api<any>(`/projects/${projectId}/documents`, { method: 'POST', body: form })
+      return api<Resource<DocumentFile>>(`/projects/${projectId}/documents`, { method: 'POST', body: form })
     },
     deleteDocument: (documentId: number | string) =>
-      api<any>(`/documents/${documentId}`, { method: 'DELETE' }),
+      api<MessageResponse>(`/documents/${documentId}`, { method: 'DELETE' }),
   }
 }
 

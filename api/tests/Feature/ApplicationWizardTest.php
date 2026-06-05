@@ -64,6 +64,22 @@ class ApplicationWizardTest extends TestCase
             ->assertJsonValidationErrors(['data.utility_provider', 'data.average_monthly_bill']);
     }
 
+    public function test_completing_the_banking_step_enforces_account_format(): void
+    {
+        $this->saveStep('banking', [
+            'account_holder_name' => 'Jane Doe',
+            'bank_name' => 'First National',
+            'routing_number' => '123',
+            'account_number' => 'not-a-number',
+            'account_type' => 'crypto',
+        ])->assertStatus(422)
+            ->assertJsonValidationErrors([
+                'data.routing_number',
+                'data.account_number',
+                'data.account_type',
+            ]);
+    }
+
     public function test_resume_pointer_advances_to_the_first_incomplete_step(): void
     {
         $this->saveStep('eligibility', [
@@ -161,6 +177,15 @@ class ApplicationWizardTest extends TestCase
         ])->assertCreated();
 
         $this->saveStep('documents', [])->assertSuccessful();
+
+        $this->saveStep('banking', [
+            'account_holder_name' => 'Jane Doe',
+            'bank_name' => 'First National',
+            'routing_number' => '021000021',
+            'account_number' => '1234567890',
+            'account_type' => 'checking',
+        ])->assertSuccessful();
+
         $this->saveStep('review', ['accepted_terms' => true])->assertSuccessful();
 
         $this->assertNull($this->application->fresh()->current_step);

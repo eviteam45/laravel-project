@@ -55,5 +55,18 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { token, user, isLoggedIn, isAdmin, hasRole, fetchUser, login, register, logout }
+  async function forgotPassword(email: string): Promise<void> {
+    await api('/forgot-password', { method: 'POST', body: { email } })
+  }
+
+  async function resetPassword(payload: {
+    token: string
+    email: string
+    password: string
+    password_confirmation: string
+  }): Promise<void> {
+    await api('/reset-password', { method: 'POST', body: payload })
+  }
+
+  return { token, user, isLoggedIn, isAdmin, hasRole, fetchUser, login, register, logout, forgotPassword, resetPassword }
 })

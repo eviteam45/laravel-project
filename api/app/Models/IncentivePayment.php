@@ -10,6 +10,8 @@ class IncentivePayment extends Model
 {
     use HasFactory;
 
+    public const STATUSES = ['pending', 'scheduled', 'paid', 'failed'];
+
     protected $fillable = [
         'application_id',
         'amount',

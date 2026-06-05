@@ -3,13 +3,14 @@
 namespace Database\Factories;
 
 use App\Models\IncentiveApplication;
+use App\Models\IncentivePayment;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 class IncentivePaymentFactory extends Factory
 {
     public function definition(): array
     {
-        $status = fake()->randomElement(['pending', 'scheduled', 'paid', 'failed']);
+        $status = fake()->randomElement(IncentivePayment::STATUSES);
 
         return [
             'application_id' => IncentiveApplication::factory(),

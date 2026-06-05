@@ -8,6 +8,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\URL;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -74,5 +75,61 @@ class DocumentTest extends TestCase
         $this->deleteJson("/api/documents/{$id}")->assertOk();
         $this->assertDatabaseMissing('documents', ['id' => $id]);
         $this->assertCount(0, Storage::disk('local')->allFiles());
+    }
+
+    public function test_the_owner_can_download_via_the_signed_url(): void
+    {
+        Storage::fake('local');
+        [$user, $contractor] = $this->contractorOwner();
+        $project = Project::factory()->for($contractor)->create();
+
+        Sanctum::actingAs($user);
+
+        $url = $this->postJson("/api/projects/{$project->id}/documents", [
+            'file' => UploadedFile::fake()->create('c.pdf', 10, 'application/pdf'),
+            'type' => 'contract',
+        ])->json('data.download_url');
+
+        $this->get($url)->assertOk();
+    }
+
+    public function test_a_signed_url_bound_to_an_unauthorized_user_is_forbidden(): void
+    {
+        Storage::fake('local');
+        [$user, $contractor] = $this->contractorOwner();
+        $project = Project::factory()->for($contractor)->create();
+
+        Sanctum::actingAs($user);
+
+        $id = $this->postJson("/api/projects/{$project->id}/documents", [
+            'file' => UploadedFile::fake()->create('c.pdf', 10, 'application/pdf'),
+            'type' => 'contract',
+        ])->json('data.id');
+
+        // A validly-signed URL minted for an unrelated user must not grant access.
+        [$stranger] = $this->contractorOwner();
+        $url = URL::temporarySignedRoute('documents.download', now()->addMinutes(30), [
+            'document' => $id,
+            'u' => $stranger->id,
+        ]);
+
+        $this->get($url)->assertForbidden();
+    }
+
+    public function test_an_unsigned_download_request_is_rejected(): void
+    {
+        Storage::fake('local');
+        [$user, $contractor] = $this->contractorOwner();
+        $project = Project::factory()->for($contractor)->create();
+
+        Sanctum::actingAs($user);
+
+        $id = $this->postJson("/api/projects/{$project->id}/documents", [
+            'file' => UploadedFile::fake()->create('c.pdf', 10, 'application/pdf'),
+            'type' => 'contract',
+        ])->json('data.id');
+
+        // No signature → the `signed` middleware rejects before the handler runs.
+        $this->get("/api/documents/{$id}/download?u={$user->id}")->assertForbidden();
     }
 }

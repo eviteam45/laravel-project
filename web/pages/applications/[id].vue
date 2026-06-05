@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { fieldErrors, APPLICATION_TRANSITIONS } from '~/composables/useApplications'
+import { fieldErrors, validateStep, APPLICATION_TRANSITIONS } from '~/composables/useApplications'
 import { transitionsFor } from '~/composables/useProjects'
 
 const route = useRoute()
@@ -7,19 +7,21 @@ const id = route.params.id as string
 const { get, saveStep, uploadDocument, deleteDocument, submit, transition } = useApplications()
 const { user } = useAuth()
 
-const { data, refresh } = await useAsyncData(`application-${id}`, () => get(id))
+const { data, pending, error, refresh } = await useAsyncData(`application-${id}`, () => get(id))
 const app = computed(() => data.value?.data)
 
 const STEPS = [
   { key: 'eligibility', label: 'Eligibility' },
   { key: 'system', label: 'System' },
   { key: 'documents', label: 'Documents' },
+  { key: 'banking', label: 'Banking' },
   { key: 'review', label: 'Review & submit' },
 ]
 
 const forms = reactive<Record<string, any>>({
   eligibility: { owns_property: false, utility_provider: '', average_monthly_bill: null },
   system: { battery_oem: '', battery_model: '', quantity: 1, usable_capacity_kwh: null },
+  banking: { account_holder_name: '', bank_name: '', routing_number: '', account_number: '', account_type: 'checking' },
   review: { accepted_terms: false },
 })
 
@@ -30,12 +32,13 @@ function hydrate() {
 }
 hydrate()
 
-const active = ref<string>(app.value?.current_step ?? 'eligibility')
+const resumeStep = app.value?.current_step ?? 'eligibility'
+const active = ref<string>(STEPS.some(s => s.key === resumeStep) ? resumeStep : 'eligibility')
 const errors = ref<Record<string, string>>({})
 const general = ref('')
 const saving = ref(false)
 
-const locked = computed(() => !['started', 'in_progress'].includes(app.value?.status))
+const locked = computed(() => !['started', 'in_progress'].includes(app.value?.status ?? ''))
 
 function isComplete(key: string): boolean {
   return !!app.value?.steps?.find((s: any) => s.step_key === key)?.is_complete
@@ -45,9 +48,37 @@ function indexOf(key: string) {
   return STEPS.findIndex(s => s.key === key)
 }
 
+function clientErrors(key: string): Record<string, string> {
+  if (key === 'documents') {
+    return app.value?.documents?.length ? {} : { documents: 'Upload at least one document.' }
+  }
+  return validateStep(key, forms[key] ?? {})
+}
+
+function canVisit(key: string): boolean {
+  if (locked.value) return true
+  const idx = indexOf(key)
+  if (idx <= 0) return true
+  return STEPS.slice(0, idx).every(s => isComplete(s.key))
+}
+
+function goTo(key: string) {
+  if (!canVisit(key)) return
+  errors.value = {}
+  general.value = ''
+  active.value = key
+}
+
 async function persist(key: string, complete: boolean) {
   errors.value = {}
   general.value = ''
+  if (complete) {
+    const ce = clientErrors(key)
+    if (Object.keys(ce).length) {
+      errors.value = ce
+      return
+    }
+  }
   saving.value = true
   try {
     await saveStep(id, key, forms[key] ?? {}, complete)
@@ -73,6 +104,14 @@ const uploading = ref(false)
 async function onUpload(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0]
   if (!file) return
+
+  const uploadError = validateUpload(file)
+  if (uploadError) {
+    general.value = uploadError
+    if (fileInput.value) fileInput.value.value = ''
+    return
+  }
+
   uploading.value = true
   general.value = ''
   try {
@@ -94,7 +133,18 @@ async function removeDoc(docId: number) {
 }
 
 async function onSubmit() {
+  errors.value = {}
   general.value = ''
+  const ce = clientErrors('review')
+  if (Object.keys(ce).length) {
+    errors.value = ce
+    return
+  }
+  const incomplete = STEPS.filter(s => s.key !== 'review' && !isComplete(s.key)).map(s => s.label)
+  if (incomplete.length) {
+    general.value = `Finish these steps first: ${incomplete.join(', ')}.`
+    return
+  }
   saving.value = true
   try {
     await submit(id)
@@ -232,29 +282,35 @@ async function doTransition(to: string) {
       {{ general }}
     </p>
 
-    <!-- Stepper -->
     <nav class="mb-5 flex flex-wrap gap-2">
       <button
         v-for="s in STEPS"
         :key="s.key"
         class="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition"
+        :disabled="!canVisit(s.key)"
+        :title="canVisit(s.key) ? '' : 'Complete the earlier steps first'"
         :class="active === s.key
           ? 'border-emerald-500 bg-white font-semibold text-gray-900'
           : isComplete(s.key)
             ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-            : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'"
-        @click="active = s.key"
+            : !canVisit(s.key)
+              ? 'cursor-not-allowed border-gray-100 bg-white text-gray-300'
+              : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'"
+        @click="goTo(s.key)"
       >
         <span
           v-if="isComplete(s.key)"
           class="text-emerald-600"
         >✓</span>
+        <span
+          v-else-if="!canVisit(s.key)"
+          aria-hidden="true"
+        >🔒</span>
         {{ s.label }}
       </button>
     </nav>
 
     <div class="card max-w-2xl">
-      <!-- Eligibility -->
       <div
         v-show="active === 'eligibility'"
         class="space-y-3"
@@ -300,7 +356,6 @@ async function doTransition(to: string) {
         </div>
       </div>
 
-      <!-- System -->
       <div
         v-show="active === 'system'"
         class="space-y-3"
@@ -366,7 +421,6 @@ async function doTransition(to: string) {
         </div>
       </div>
 
-      <!-- Documents -->
       <div
         v-show="active === 'documents'"
         class="space-y-3"
@@ -443,15 +497,178 @@ async function doTransition(to: string) {
         </p>
       </div>
 
-      <!-- Review -->
       <div
-        v-show="active === 'review'"
+        v-show="active === 'banking'"
         class="space-y-3"
       >
+        <h2>Banking details</h2>
+        <p class="text-sm text-gray-500">
+          Where the incentive payment will be deposited once approved.
+        </p>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label class="label">Account holder name</label>
+            <input
+              v-model="forms.banking.account_holder_name"
+              class="input"
+              :disabled="locked"
+              type="text"
+              autocomplete="off"
+            >
+            <p
+              v-if="errors.account_holder_name"
+              class="field-error"
+            >
+              {{ errors.account_holder_name }}
+            </p>
+          </div>
+          <div>
+            <label class="label">Bank name</label>
+            <input
+              v-model="forms.banking.bank_name"
+              class="input"
+              :disabled="locked"
+              type="text"
+              autocomplete="off"
+            >
+            <p
+              v-if="errors.bank_name"
+              class="field-error"
+            >
+              {{ errors.bank_name }}
+            </p>
+          </div>
+          <div>
+            <label class="label">Routing number</label>
+            <input
+              v-model="forms.banking.routing_number"
+              class="input"
+              :disabled="locked"
+              type="text"
+              inputmode="numeric"
+              maxlength="9"
+              autocomplete="off"
+            >
+            <p
+              v-if="errors.routing_number"
+              class="field-error"
+            >
+              {{ errors.routing_number }}
+            </p>
+          </div>
+          <div>
+            <label class="label">Account number</label>
+            <input
+              v-model="forms.banking.account_number"
+              class="input"
+              :disabled="locked"
+              type="text"
+              inputmode="numeric"
+              maxlength="17"
+              autocomplete="off"
+            >
+            <p
+              v-if="errors.account_number"
+              class="field-error"
+            >
+              {{ errors.account_number }}
+            </p>
+          </div>
+          <div>
+            <label class="label">Account type</label>
+            <select
+              v-model="forms.banking.account_type"
+              class="input"
+              :disabled="locked"
+            >
+              <option value="checking">
+                Checking
+              </option>
+              <option value="savings">
+                Savings
+              </option>
+            </select>
+            <p
+              v-if="errors.account_type"
+              class="field-error"
+            >
+              {{ errors.account_type }}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div
+        v-show="active === 'review'"
+        class="space-y-4"
+      >
         <h2>Review &amp; submit</h2>
+
+        <dl class="divide-y divide-gray-100 rounded-lg border border-gray-100 text-sm">
+          <div class="grid grid-cols-3 gap-2 px-3 py-2">
+            <dt class="font-medium text-gray-500">
+              Property owner
+            </dt>
+            <dd class="col-span-2">
+              {{ forms.eligibility.owns_property ? 'Yes' : 'No' }}
+            </dd>
+          </div>
+          <div class="grid grid-cols-3 gap-2 px-3 py-2">
+            <dt class="font-medium text-gray-500">
+              Utility provider
+            </dt>
+            <dd class="col-span-2">
+              {{ forms.eligibility.utility_provider || '—' }}
+            </dd>
+          </div>
+          <div class="grid grid-cols-3 gap-2 px-3 py-2">
+            <dt class="font-medium text-gray-500">
+              Average monthly bill
+            </dt>
+            <dd class="col-span-2">
+              {{ forms.eligibility.average_monthly_bill != null ? `$${forms.eligibility.average_monthly_bill}` : '—' }}
+            </dd>
+          </div>
+          <div class="grid grid-cols-3 gap-2 px-3 py-2">
+            <dt class="font-medium text-gray-500">
+              Battery system
+            </dt>
+            <dd class="col-span-2">
+              {{ [forms.system.battery_oem, forms.system.battery_model].filter(Boolean).join(' ') || '—' }}
+              <span v-if="forms.system.quantity">× {{ forms.system.quantity }}</span>
+              <span v-if="forms.system.usable_capacity_kwh">· {{ forms.system.usable_capacity_kwh }} kWh</span>
+            </dd>
+          </div>
+          <div class="grid grid-cols-3 gap-2 px-3 py-2">
+            <dt class="font-medium text-gray-500">
+              Deposit account
+            </dt>
+            <dd class="col-span-2">
+              <template v-if="forms.banking.account_number">
+                {{ forms.banking.bank_name }} · {{ forms.banking.account_type }} ••••{{ String(forms.banking.account_number).slice(-4) }}
+              </template>
+              <template v-else>
+                —
+              </template>
+            </dd>
+          </div>
+          <div class="grid grid-cols-3 gap-2 px-3 py-2">
+            <dt class="font-medium text-gray-500">
+              Documents
+            </dt>
+            <dd class="col-span-2">
+              <span v-if="app.documents?.length">{{ app.documents.map((d: any) => d.file_name).join(', ') }}</span>
+              <span
+                v-else
+                class="text-red-600"
+              >none uploaded</span>
+            </dd>
+          </div>
+        </dl>
+
         <ul class="space-y-1 text-sm">
           <li
-            v-for="st in STEPS.slice(0, 3)"
+            v-for="st in STEPS.slice(0, 4)"
             :key="st.key"
           >
             {{ st.label }}:
@@ -459,8 +676,8 @@ async function doTransition(to: string) {
               {{ isComplete(st.key) ? 'complete' : 'incomplete' }}
             </span>
           </li>
-          <li>Documents uploaded: <span class="font-semibold">{{ app.documents?.length ?? 0 }}</span></li>
         </ul>
+
         <label class="flex items-center gap-2 text-sm">
           <input
             v-model="forms.review.accepted_terms"
@@ -477,7 +694,6 @@ async function doTransition(to: string) {
         </p>
       </div>
 
-      <!-- Actions -->
       <div
         v-if="!locked"
         class="mt-5 flex gap-2 border-t border-gray-100 pt-4"
@@ -518,9 +734,11 @@ async function doTransition(to: string) {
     </div>
   </section>
 
-  <section v-else>
-    <p class="text-gray-500">
-      Loading…
-    </p>
-  </section>
+  <AsyncState
+    v-else
+    :pending="pending"
+    :error="error"
+    error-text="Couldn't load this application."
+    @retry="refresh"
+  />
 </template>

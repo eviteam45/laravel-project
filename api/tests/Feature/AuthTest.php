@@ -164,7 +164,7 @@ class AuthTest extends TestCase
     public function test_login_is_rate_limited(): void
     {
 
-        for ($i = 0; $i < 6; $i++) {
+        for ($i = 0; $i < 10; $i++) {
             $this->postJson('/api/login', ['email' => 'nobody@example.com', 'password' => 'wrong'])
                 ->assertStatus(422);
         }

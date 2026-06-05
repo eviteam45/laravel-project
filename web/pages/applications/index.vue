@@ -6,7 +6,7 @@ const { list } = useApplications()
 
 const filters = reactive({ search: '', status: '', region: '', sort: 'created_at', dir: 'desc', per_page: 15, page: 1 })
 
-const { data, pending, refresh } = await useAsyncData(
+const { data, pending, error, refresh } = await useAsyncData(
   'applications',
   () =>
     list({
@@ -126,85 +126,85 @@ const meta = computed(() => data.value?.meta)
       </button>
     </form>
 
-    <p
-      v-if="pending"
-      class="text-gray-500"
+    <AsyncState
+      :pending="pending"
+      :error="error"
+      error-text="Couldn't load applications."
+      @retry="refresh"
     >
-      Loading…
-    </p>
-
-    <div
-      v-else-if="data?.data?.length"
-      class="card overflow-hidden !p-0"
-    >
-      <table class="w-full text-sm">
-        <thead class="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
-          <tr>
-            <th class="px-4 py-3 font-medium">
-              Project
-            </th>
-            <th
-              class="cursor-pointer select-none px-4 py-3 font-medium hover:text-gray-700"
-              @click="sortBy('status')"
-            >
-              Status{{ sortIcon('status') }}
-            </th>
-            <th
-              class="cursor-pointer select-none px-4 py-3 font-medium hover:text-gray-700"
-              @click="sortBy('submitted_at')"
-            >
-              Submitted{{ sortIcon('submitted_at') }}
-            </th>
-            <th
-              class="cursor-pointer select-none px-4 py-3 font-medium hover:text-gray-700"
-              @click="sortBy('created_at')"
-            >
-              Created{{ sortIcon('created_at') }}
-            </th>
-            <th class="px-4 py-3" />
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-100">
-          <tr
-            v-for="a in data.data"
-            :key="a.id"
-            class="hover:bg-gray-50"
-          >
-            <td class="px-4 py-3 font-medium text-gray-900">
-              {{ a.project?.name ?? `Application #${a.id}` }}
-              <span
-                v-if="a.project?.contractor?.company_name"
-                class="block text-xs font-normal text-gray-400"
+      <div
+        v-if="data?.data?.length"
+        class="card overflow-hidden !p-0"
+      >
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+            <tr>
+              <th class="px-4 py-3 font-medium">
+                Project
+              </th>
+              <th
+                class="cursor-pointer select-none px-4 py-3 font-medium hover:text-gray-700"
+                @click="sortBy('status')"
               >
-                {{ a.project.contractor.company_name }}
-              </span>
-            </td>
-            <td class="px-4 py-3">
-              <span class="badge badge-emerald">{{ a.status.replace('_', ' ') }}</span>
-            </td>
-            <td class="px-4 py-3 text-gray-600">
-              {{ fmtDate(a.submitted_at) }}
-            </td>
-            <td class="px-4 py-3 text-gray-600">
-              {{ fmtDate(a.created_at) }}
-            </td>
-            <td class="px-4 py-3 text-right">
-              <NuxtLink
-                :to="`/applications/${a.id}`"
-                class="font-medium"
-              >Open →</NuxtLink>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+                Status{{ sortIcon('status') }}
+              </th>
+              <th
+                class="cursor-pointer select-none px-4 py-3 font-medium hover:text-gray-700"
+                @click="sortBy('submitted_at')"
+              >
+                Submitted{{ sortIcon('submitted_at') }}
+              </th>
+              <th
+                class="cursor-pointer select-none px-4 py-3 font-medium hover:text-gray-700"
+                @click="sortBy('created_at')"
+              >
+                Created{{ sortIcon('created_at') }}
+              </th>
+              <th class="px-4 py-3" />
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <tr
+              v-for="a in data.data"
+              :key="a.id"
+              class="hover:bg-gray-50"
+            >
+              <td class="px-4 py-3 font-medium text-gray-900">
+                {{ a.project?.name ?? `Application #${a.id}` }}
+                <span
+                  v-if="a.project?.contractor?.company_name"
+                  class="block text-xs font-normal text-gray-400"
+                >
+                  {{ a.project.contractor.company_name }}
+                </span>
+              </td>
+              <td class="px-4 py-3">
+                <span class="badge badge-emerald">{{ a.status.replace('_', ' ') }}</span>
+              </td>
+              <td class="px-4 py-3 text-gray-600">
+                {{ fmtDate(a.submitted_at) }}
+              </td>
+              <td class="px-4 py-3 text-gray-600">
+                {{ fmtDate(a.created_at) }}
+              </td>
+              <td class="px-4 py-3 text-right">
+                <NuxtLink
+                  :to="`/applications/${a.id}`"
+                  class="font-medium"
+                >Open →</NuxtLink>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
-    <div
-      v-else
-      class="card text-center text-gray-500"
-    >
-      No applications found.
-    </div>
+      <div
+        v-else
+        class="card text-center text-gray-500"
+      >
+        No applications found.
+      </div>
+    </AsyncState>
 
     <div
       v-if="meta && meta.last_page > 1"

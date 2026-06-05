@@ -6,7 +6,7 @@ const id = route.params.id as string
 const { get, update, createApplication, remove, transition, uploadDocument, deleteDocument } = useProjects()
 const { user } = useAuth()
 
-const { data, refresh } = await useAsyncData(`project-${id}`, () => get(id))
+const { data, pending, error, refresh } = await useAsyncData(`project-${id}`, () => get(id))
 const project = computed(() => data.value?.data)
 
 const busy = ref(false)
@@ -31,6 +31,14 @@ const docError = ref('')
 async function onUpload(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0]
   if (!file) return
+
+  const uploadError = validateUpload(file)
+  if (uploadError) {
+    docError.value = uploadError
+    if (fileInput.value) fileInput.value.value = ''
+    return
+  }
+
   uploading.value = true
   docError.value = ''
   try {
@@ -323,9 +331,11 @@ async function destroy() {
     </Modal>
   </section>
 
-  <section v-else>
-    <p class="text-gray-500">
-      Loading…
-    </p>
-  </section>
+  <AsyncState
+    v-else
+    :pending="pending"
+    :error="error"
+    error-text="Couldn't load this project."
+    @retry="refresh"
+  />
 </template>

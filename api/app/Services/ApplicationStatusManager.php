@@ -84,6 +84,7 @@ class ApplicationStatusManager extends StatusTransitionManager
 
     protected function sideEffects(Model $subject, string $from, string $to, User $actor, array $context): void
     {
-        ProcessApplicationTransition::dispatchSync($subject->getKey(), $from, $to, $actor->id);
+
+        ProcessApplicationTransition::dispatch($subject->getKey(), $from, $to, $actor->id)->afterCommit();
     }
 }

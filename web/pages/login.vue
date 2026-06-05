@@ -95,6 +95,12 @@ const onSubmit = handleSubmit(async (values) => {
           {{ isSubmitting ? 'Logging in…' : 'Log in' }}
         </button>
       </form>
+
+      <p class="mt-4 text-right text-sm">
+        <NuxtLink to="/forgot-password">
+          Forgot password?
+        </NuxtLink>
+      </p>
     </div>
 
     <p class="mt-4 text-center text-sm text-gray-500">

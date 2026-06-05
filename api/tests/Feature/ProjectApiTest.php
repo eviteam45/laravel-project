@@ -115,7 +115,7 @@ class ProjectApiTest extends TestCase
             ->assertJsonPath('data.status', 'draft');
 
         $this->deleteJson("/api/projects/{$project->id}")->assertOk();
-        $this->assertDatabaseMissing('projects', ['id' => $project->id]);
+        $this->assertSoftDeleted('projects', ['id' => $project->id]);
     }
 
     public function test_an_admin_creates_a_project_by_selecting_a_contractor(): void

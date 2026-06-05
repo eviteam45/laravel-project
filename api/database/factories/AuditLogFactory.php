@@ -17,7 +17,7 @@ class AuditLogFactory extends Factory
 
             'subject_type' => Project::class,
             'subject_id' => Project::factory(),
-            'changes' => ['before' => ['status' => 'draft'], 'after' => ['status' => 'submitted']],
+            'changes' => ['status' => ['from' => 'draft', 'to' => 'submitted']],
         ];
     }
 

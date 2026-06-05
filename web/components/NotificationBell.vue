@@ -1,29 +1,10 @@
 <script setup lang="ts">
-const { notifications, markAllRead, markRead } = useDashboard()
+import { storeToRefs } from 'pinia'
+
+const store = useNotificationsStore()
+const { items, unreadCount: unread } = storeToRefs(store)
 
 const open = ref(false)
-const items = ref<any[]>([])
-
-async function load() {
-  try {
-    items.value = (await notifications()).data ?? []
-  }
-  catch {
-    items.value = []
-  }
-}
-
-const unread = computed(() => items.value.filter(n => !n.is_read).length)
-
-async function markAll() {
-  await markAllRead()
-  await load()
-}
-
-async function readOne(id: number) {
-  await markRead(id)
-  await load()
-}
 
 function prettyType(t: string) {
   return t.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
@@ -37,8 +18,8 @@ function onDocClick(e: MouseEvent) {
 let timer: ReturnType<typeof setInterval> | undefined
 
 onMounted(() => {
-  load()
-  timer = setInterval(load, 30000)
+  store.load()
+  timer = setInterval(() => store.load(), 30000)
   document.addEventListener('click', onDocClick)
 })
 onBeforeUnmount(() => {
@@ -87,7 +68,7 @@ onBeforeUnmount(() => {
           v-if="unread"
           type="button"
           class="text-xs text-blue-600 hover:underline"
-          @click="markAll"
+          @click="store.markAll()"
         >
           Mark all read
         </button>
@@ -108,7 +89,7 @@ onBeforeUnmount(() => {
               v-if="!n.is_read"
               type="button"
               class="shrink-0 text-xs text-gray-400 hover:text-gray-600"
-              @click="readOne(n.id)"
+              @click="store.markOne(n.id)"
             >
               mark read
             </button>

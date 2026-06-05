@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Notification;
 use App\Models\Project;
 use App\Models\User;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Collection;
 
 class TransitionNotifier
@@ -35,11 +36,16 @@ class TransitionNotifier
             return false;
         }
 
-        Notification::create([
-            'user_id' => $user->id,
-            'type' => $type,
-            'data' => $data,
-        ]);
+        try {
+            Notification::create([
+                'user_id' => $user->id,
+                'type' => $type,
+                'data' => $data,
+            ]);
+        } catch (QueryException $e) {
+
+            return false;
+        }
 
         return true;
     }

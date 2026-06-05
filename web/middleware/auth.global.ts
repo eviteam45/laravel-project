@@ -2,7 +2,7 @@ import type { Role } from '~/types'
 
 export default defineNuxtRouteMiddleware(async (to) => {
   const auth = useAuth()
-  const guestOnly = ['/login', '/register']
+  const guestOnly = ['/login', '/register', '/forgot-password', '/reset-password']
 
   if (auth.isLoggedIn.value && !auth.user.value) {
     await auth.fetchUser()

@@ -3,7 +3,7 @@ const route = useRoute()
 const id = route.params.id as string
 const { get, update } = useProjects()
 
-const { data } = await useAsyncData(`project-${id}-edit`, () => get(id))
+const { data, pending, error, refresh } = await useAsyncData(`project-${id}-edit`, () => get(id))
 const project = computed(() => data.value?.data)
 
 async function submit(payload: Record<string, any>) {
@@ -27,4 +27,12 @@ async function submit(payload: Record<string, any>) {
       submit-label="Save changes"
     />
   </section>
+
+  <AsyncState
+    v-else
+    :pending="pending"
+    :error="error"
+    error-text="Couldn't load this project."
+    @retry="refresh"
+  />
 </template>
