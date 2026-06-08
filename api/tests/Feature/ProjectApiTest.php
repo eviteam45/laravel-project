@@ -36,7 +36,7 @@ class ProjectApiTest extends TestCase
             ->assertJsonStructure(['data', 'links', 'meta']);
     }
 
-    public function test_index_filters_by_status_and_search(): void
+    public function test_index_filters_by_status(): void
     {
         [$user, $contractor] = $this->contractorUser();
         Project::factory()->for($contractor)->create(['name' => 'Solar Roof Alpha', 'status' => 'installed']);
@@ -48,11 +48,6 @@ class ProjectApiTest extends TestCase
             ->assertOk()
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.name', 'Solar Roof Alpha');
-
-        $this->getJson('/api/projects?search=Beta')
-            ->assertOk()
-            ->assertJsonCount(1, 'data')
-            ->assertJsonPath('data.0.name', 'Battery Beta');
     }
 
     public function test_a_contractor_can_create_a_project_for_themselves(): void

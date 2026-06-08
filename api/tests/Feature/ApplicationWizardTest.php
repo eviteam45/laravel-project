@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\ApplicationStatus;
 use App\Models\Contractor;
 use App\Models\Customer;
 use App\Models\IncentiveApplication;
@@ -64,6 +65,13 @@ class ApplicationWizardTest extends TestCase
             ->assertJsonValidationErrors(['data.utility_provider', 'data.average_monthly_bill']);
     }
 
+    public function test_draft_rejects_fields_not_defined_by_the_step(): void
+    {
+        $this->saveStep('eligibility', ['utility_provider' => 'Acme', 'evil_key' => 'x'], complete: false)
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('data');
+    }
+
     public function test_completing_the_banking_step_enforces_account_format(): void
     {
         $this->saveStep('banking', [
@@ -93,7 +101,7 @@ class ApplicationWizardTest extends TestCase
 
     public function test_first_step_save_advances_started_to_in_progress(): void
     {
-        $this->application->update(['status' => 'started']);
+        $this->application->forceFill(['status' => 'started'])->save();
 
         $this->saveStep('eligibility', [
             'owns_property' => true,
@@ -101,7 +109,7 @@ class ApplicationWizardTest extends TestCase
             'average_monthly_bill' => 180,
         ])->assertSuccessful();
 
-        $this->assertSame('in_progress', $this->application->fresh()->status);
+        $this->assertSame(ApplicationStatus::InProgress, $this->application->fresh()->status);
     }
 
     public function test_the_customer_applicant_can_also_complete_steps(): void
@@ -110,7 +118,7 @@ class ApplicationWizardTest extends TestCase
         $customerUser = User::factory()->customer()->create();
         $customer = Customer::factory()->create(['user_id' => $customerUser->id]);
         $this->application->project->update(['customer_id' => $customer->id]);
-        $this->application->update(['status' => 'started']);
+        $this->application->forceFill(['status' => 'started'])->save();
 
         Sanctum::actingAs($customerUser);
 
@@ -123,7 +131,7 @@ class ApplicationWizardTest extends TestCase
             'complete' => true,
         ])->assertSuccessful();
 
-        $this->assertSame('in_progress', $this->application->fresh()->status);
+        $this->assertSame(ApplicationStatus::InProgress, $this->application->fresh()->status);
     }
 
     public function test_documents_can_be_uploaded_and_downloaded_via_signed_url(): void

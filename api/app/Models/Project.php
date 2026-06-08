@@ -2,6 +2,9 @@
 
 namespace App\Models;
 
+use App\Enums\ApplicationStatus;
+use App\Enums\ProjectStatus;
+use App\Models\Concerns\FiltersByStatusCsv;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -14,19 +17,14 @@ use Illuminate\Http\Request;
 
 class Project extends Model
 {
-    use HasFactory, SoftDeletes;
-
-    public const STATUSES = ['draft', 'submitted', 'in_review', 'approved', 'installed', 'closed', 'rejected'];
+    use FiltersByStatusCsv, HasFactory, SoftDeletes;
 
     public const SORTABLE = ['name', 'status', 'capacity_kw', 'install_date', 'created_at'];
-
-    public const LOCKED_APPLICATION_STATUSES = ['submitted', 'under_review', 'reserved', 'paid'];
 
     protected $fillable = [
         'name',
         'contractor_id',
         'customer_id',
-        'status',
         'address',
         'capacity_kw',
         'install_date',
@@ -37,7 +35,25 @@ class Project extends Model
         return [
             'capacity_kw' => 'decimal:2',
             'install_date' => 'date',
+            'status' => ProjectStatus::class,
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::forceDeleted(function (Project $project) {
+            $project->documents()->get()->each->delete();
+            $project->notes()->delete();
+        });
+
+        static::updated(function (Project $project) {
+            if ($project->wasChanged(['contractor_id', 'customer_id'])) {
+                $project->application()->update([
+                    'contractor_id' => $project->contractor_id,
+                    'customer_id' => $project->customer_id,
+                ]);
+            }
+        });
     }
 
     public function contractor(): BelongsTo
@@ -73,13 +89,19 @@ class Project extends Model
     public function scopeFilter(Builder $query, Request $request): Builder
     {
         return $query
-            ->when($request->filled('status'), fn ($q) => $q->whereIn('status', array_filter(explode(',', (string) $request->query('status')))))
+            ->whereStatusCsv($request->query('status'))
             ->when($request->filled('contractor_id'), fn ($q) => $q->where('contractor_id', $request->integer('contractor_id')))
             ->when($request->filled('customer_id'), fn ($q) => $q->where('customer_id', $request->integer('customer_id')))
             ->when($request->filled('region'), fn ($q) => $q->whereHas('contractor', fn ($c) => $c->where('region', $request->query('region'))))
             ->when($request->filled('search'), function ($q) use ($request) {
-                $term = '%'.$request->query('search').'%';
-                $q->where(fn ($sub) => $sub->where('name', 'like', $term)->orWhere('address', 'like', $term));
+                $term = (string) $request->query('search');
+
+                if ($q->getConnection()->getDriverName() === 'mysql') {
+                    $q->whereFullText(['name', 'address'], $term);
+                } else {
+                    $like = '%'.$term.'%';
+                    $q->where(fn ($sub) => $sub->where('name', 'like', $like)->orWhere('address', 'like', $like));
+                }
             })
             ->when($request->filled('min_capacity'), fn ($q) => $q->where('capacity_kw', '>=', $request->float('min_capacity')))
             ->when($request->filled('max_capacity'), fn ($q) => $q->where('capacity_kw', '<=', $request->float('max_capacity')))
@@ -92,7 +114,9 @@ class Project extends Model
 
     public function hasLockedApplication(): bool
     {
-        return $this->application()->whereIn('status', self::LOCKED_APPLICATION_STATUSES)->exists();
+        return $this->application()
+            ->whereIn('status', array_map(fn (ApplicationStatus $s) => $s->value, ApplicationStatus::locked()))
+            ->exists();
     }
 
     public function scopeVisibleTo(Builder $query, User $user): Builder

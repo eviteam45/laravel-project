@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\PaymentStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -9,8 +10,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class IncentivePayment extends Model
 {
     use HasFactory;
-
-    public const STATUSES = ['pending', 'scheduled', 'paid', 'failed'];
 
     protected $fillable = [
         'application_id',
@@ -26,6 +25,7 @@ class IncentivePayment extends Model
             'amount' => 'decimal:2',
             'scheduled_for' => 'date',
             'paid_at' => 'datetime',
+            'status' => PaymentStatus::class,
         ];
     }
 

@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\UpdateUserRoleRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
+use App\Services\UserRoleManager;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Validation\ValidationException;
@@ -54,7 +55,7 @@ class UserController extends Controller
             new OA\Response(response: 422, description: 'Invalid role or own account'),
         ]
     )]
-    public function updateRole(UpdateUserRoleRequest $request, User $user): UserResource
+    public function updateRole(UpdateUserRoleRequest $request, User $user, UserRoleManager $roleManager): UserResource
     {
         if ($user->id === $request->user()->id) {
             throw ValidationException::withMessages([
@@ -62,7 +63,7 @@ class UserController extends Controller
             ]);
         }
 
-        $user->changeRole($request->validated()['role']);
+        $roleManager->changeRole($user, $request->validated()['role']);
 
         return new UserResource($user->fresh());
     }

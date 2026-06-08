@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Models\Contractor;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Password;
 
 class StoreContractorRequest extends FormRequest
 {
@@ -18,7 +19,7 @@ class StoreContractorRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
-            'password' => ['required', 'string', 'min:8'],
+            'password' => ['required', 'string', Password::defaults()],
             'company_name' => ['required', 'string', 'max:255'],
             'license_no' => ['nullable', 'string', 'max:100'],
             'phone' => ['nullable', 'string', 'max:50'],

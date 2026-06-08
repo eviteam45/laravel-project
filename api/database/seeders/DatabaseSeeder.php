@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Enums\ApplicationStatus;
 use App\Models\ApplicationStep;
 use App\Models\AuditLog;
 use App\Models\BatterySystem;
@@ -71,10 +72,10 @@ class DatabaseSeeder extends Seeder
         Document::factory(rand(1, 4))->forOwner($application)->create(['uploaded_by' => $admin->id]);
         Note::factory(rand(0, 2))->forOwner($application)->create(['user_id' => $admin->id]);
 
-        if (in_array($application->status, ['reserved', 'paid'], true)) {
+        if (in_array($application->status, [ApplicationStatus::Reserved, ApplicationStatus::Paid], true)) {
             IncentivePayment::factory()
                 ->for($application, 'application')
-                ->state(['status' => $application->status === 'paid' ? 'paid' : 'scheduled'])
+                ->state(['status' => $application->status === ApplicationStatus::Paid ? 'paid' : 'scheduled'])
                 ->create();
         }
 

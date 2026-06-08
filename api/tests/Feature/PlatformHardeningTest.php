@@ -2,12 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Enums\ProjectStatus;
 use App\Models\Contractor;
 use App\Models\Document;
 use App\Models\IncentiveApplication;
 use App\Models\Notification;
 use App\Models\Project;
 use App\Models\User;
+use App\Services\UserRoleManager;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -35,7 +37,7 @@ class PlatformHardeningTest extends TestCase
 
         $path = UploadedFile::fake()->create('proof.pdf', 10)->store('documents/apps', 'local');
         Document::create([
-            'documentable_type' => IncentiveApplication::class,
+            'documentable_type' => 'application',
             'documentable_id' => $application->id,
             'type' => 'proof',
             'file_path' => $path,
@@ -43,7 +45,6 @@ class PlatformHardeningTest extends TestCase
 
         $application->delete();
 
-        // Soft delete keeps the row recoverable, so the files must survive.
         $this->assertSoftDeleted('incentive_applications', ['id' => $application->id]);
         Storage::disk('local')->assertExists($path);
     }
@@ -57,7 +58,7 @@ class PlatformHardeningTest extends TestCase
 
         $path = UploadedFile::fake()->create('spec.pdf', 10)->store('documents/apps', 'local');
         Document::create([
-            'documentable_type' => IncentiveApplication::class,
+            'documentable_type' => 'application',
             'documentable_id' => $application->id,
             'type' => 'spec_sheet',
             'file_path' => $path,
@@ -112,7 +113,7 @@ class PlatformHardeningTest extends TestCase
         $user = User::factory()->contractor()->create();
         Contractor::factory()->create(['user_id' => $user->id]);
 
-        $user->changeRole('customer');
+        app(UserRoleManager::class)->changeRole($user, 'customer');
 
         $this->assertDatabaseMissing('contractors', ['user_id' => $user->id]);
         $this->assertDatabaseHas('customers', ['user_id' => $user->id]);
@@ -125,7 +126,17 @@ class PlatformHardeningTest extends TestCase
         Project::factory()->for($contractor)->create();
 
         $this->expectException(ValidationException::class);
-        $user->changeRole('customer');
+        app(UserRoleManager::class)->changeRole($user, 'customer');
+    }
+
+    public function test_status_is_guarded_against_mass_assignment(): void
+    {
+        $project = Project::factory()->create(['status' => 'draft']);
+
+        $project->update(['name' => 'Renamed', 'status' => 'approved']);
+
+        $this->assertSame('Renamed', $project->fresh()->name);
+        $this->assertSame(ProjectStatus::Draft, $project->fresh()->status);
     }
 
     public function test_a_submitted_application_cannot_be_deleted(): void

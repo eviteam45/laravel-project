@@ -7,6 +7,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (DB::getDriverName() !== 'mysql') {
+            return;
+        }
+
         DB::statement("ALTER TABLE notifications
             ADD COLUMN dedupe_ref VARCHAR(191)
             GENERATED ALWAYS AS (COALESCE(
@@ -20,6 +24,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (DB::getDriverName() !== 'mysql') {
+            return;
+        }
+
         DB::statement('ALTER TABLE notifications DROP INDEX notifications_user_type_ref_unique');
         DB::statement('ALTER TABLE notifications DROP COLUMN dedupe_ref');
     }

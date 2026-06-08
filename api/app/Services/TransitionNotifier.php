@@ -2,24 +2,37 @@
 
 namespace App\Services;
 
+use App\Enums\Role;
 use App\Models\Notification;
 use App\Models\Project;
 use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 
 class TransitionNotifier
 {
+    public const ADMIN_RECIPIENTS_CACHE_KEY = 'transition.admin-recipients';
+
     public function recipients(Project $project, ?int $exceptActorId = null): Collection
     {
         return collect([
             $project->contractor?->user,
             $project->customer?->user,
         ])
-            ->merge(User::where('role', 'admin')->get())
+            ->merge($this->admins())
             ->filter(fn (?User $u) => $u && $u->id !== $exceptActorId)
             ->unique('id')
             ->values();
+    }
+
+    private function admins(): Collection
+    {
+        return Cache::remember(
+            self::ADMIN_RECIPIENTS_CACHE_KEY,
+            now()->addMinutes(5),
+            fn () => User::where('role', Role::Admin->value)->get(),
+        );
     }
 
     public function record(User $user, string $type, array $data, array $dedupeKeys): bool

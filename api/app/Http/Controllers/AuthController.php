@@ -7,6 +7,7 @@ use App\Http\Requests\RegisterRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Auth\Events\PasswordReset;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -35,7 +36,7 @@ class AuthController extends Controller
             ]
         )),
         responses: [
-            new OA\Response(response: 201, description: 'User created and token issued'),
+            new OA\Response(response: 202, description: 'Neutral acknowledgement (non-enumerating); sign in to continue'),
             new OA\Response(response: 422, description: 'Validation error'),
         ]
     )]
@@ -43,40 +44,44 @@ class AuthController extends Controller
     {
         $validated = $request->validated();
 
-        $user = DB::transaction(function () use ($validated) {
-            $user = User::create([
-                'name' => $validated['name'],
-                'email' => $validated['email'],
-                'password' => Hash::make($validated['password']),
-                'role' => $validated['role'],
-            ]);
+        $neutral = response()->json([
+            'message' => 'Your account is ready. Please sign in to continue.',
+        ], 202);
 
-            if ($validated['role'] === 'contractor') {
-                $user->contractor()->create([
-                    'company_name' => $validated['company_name'],
-                    'license_no' => $validated['license_no'] ?? null,
-                    'phone' => $validated['phone'] ?? null,
-                    'region' => $validated['region'] ?? null,
-                    'status' => 'active',
+        if (User::where('email', $validated['email'])->exists()) {
+            return $neutral;
+        }
+
+        try {
+            DB::transaction(function () use ($validated) {
+                $user = User::create([
+                    'name' => $validated['name'],
+                    'email' => $validated['email'],
+                    'password' => Hash::make($validated['password']),
+                    'role' => $validated['role'],
                 ]);
-            } else {
-                $user->customer()->create([
-                    'full_name' => $validated['full_name'] ?? $validated['name'],
-                    'phone' => $validated['phone'] ?? null,
-                    'address' => $validated['address'] ?? null,
-                    'account_email' => $validated['email'],
-                ]);
-            }
 
-            return $user;
-        });
+                if ($validated['role'] === 'contractor') {
+                    $user->contractor()->create([
+                        'company_name' => $validated['company_name'],
+                        'license_no' => $validated['license_no'] ?? null,
+                        'phone' => $validated['phone'] ?? null,
+                        'region' => $validated['region'] ?? null,
+                        'status' => 'active',
+                    ]);
+                } else {
+                    $user->customer()->create([
+                        'full_name' => $validated['full_name'] ?? $validated['name'],
+                        'phone' => $validated['phone'] ?? null,
+                        'address' => $validated['address'] ?? null,
+                        'account_email' => $validated['email'],
+                    ]);
+                }
+            });
+        } catch (QueryException) {
+        }
 
-        $token = $user->createToken('api')->plainTextToken;
-
-        return response()->json([
-            'user' => new UserResource($user),
-            'token' => $token,
-        ], 201);
+        return $neutral;
     }
 
     #[OA\Post(

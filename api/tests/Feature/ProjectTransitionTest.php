@@ -2,10 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\ProcessProjectTransition;
 use App\Models\Contractor;
 use App\Models\Project;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Bus;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -44,7 +46,7 @@ class ProjectTransitionTest extends TestCase
 
         $this->assertDatabaseHas('audit_logs', [
             'action' => 'status_changed',
-            'subject_type' => Project::class,
+            'subject_type' => 'project',
             'subject_id' => $this->project->id,
         ]);
     }
@@ -60,7 +62,7 @@ class ProjectTransitionTest extends TestCase
 
     public function test_only_admins_can_approve(): void
     {
-        $this->project->update(['status' => 'in_review']);
+        $this->project->forceFill(['status' => 'in_review'])->save();
 
         Sanctum::actingAs($this->contractorUser);
         $this->transition(['to' => 'approved'])->assertForbidden();
@@ -80,23 +82,18 @@ class ProjectTransitionTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_a_project_transition_notifies_related_parties_except_the_actor(): void
+    public function test_a_project_transition_queues_the_notification_job_after_commit(): void
     {
-        $admin = User::factory()->admin()->create();
+        Bus::fake();
         Sanctum::actingAs($this->contractorUser);
 
         $this->transition(['to' => 'submitted'])->assertOk();
 
-        foreach ([$admin, $this->project->customer->user] as $user) {
-            $this->assertDatabaseHas('notifications', [
-                'user_id' => $user->id,
-                'type' => 'project_submitted',
-            ]);
-        }
-
-        $this->assertDatabaseMissing('notifications', [
-            'user_id' => $this->contractorUser->id,
-            'type' => 'project_submitted',
-        ]);
+        Bus::assertDispatched(
+            ProcessProjectTransition::class,
+            fn (ProcessProjectTransition $job) => $job->projectId === $this->project->id
+                && $job->to === 'submitted'
+                && $job->actorId === $this->contractorUser->id,
+        );
     }
 }

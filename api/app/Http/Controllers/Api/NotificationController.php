@@ -29,9 +29,11 @@ class NotificationController extends Controller
             ->when($request->boolean('unread'), fn ($q) => $q->whereNull('read_at'))
             ->when($request->filled('type'), fn ($q) => $q->where('type', $request->query('type')))
             ->latest()
-            ->paginate(min(max((int) $request->query('per_page', 20), 1), 100));
+            ->latest('id')
+            ->cursorPaginate(min(max((int) $request->query('per_page', 20), 1), 100));
 
-        return NotificationResource::collection($notifications);
+        return NotificationResource::collection($notifications)
+            ->additional(['unread_count' => $this->unreadCountFor($request)]);
     }
 
     #[OA\Post(
@@ -68,5 +70,22 @@ class NotificationController extends Controller
             ->update(['read_at' => now()]);
 
         return response()->json(['marked_read' => $updated]);
+    }
+
+    #[OA\Get(
+        path: '/notifications/unread-count',
+        tags: ['Notifications'],
+        summary: 'Cheap unread-count for the notification badge',
+        security: [['bearerAuth' => []]],
+        responses: [new OA\Response(response: 200, description: '{ unread_count }')]
+    )]
+    public function unreadCount(Request $request): JsonResponse
+    {
+        return response()->json(['unread_count' => $this->unreadCountFor($request)]);
+    }
+
+    private function unreadCountFor(Request $request): int
+    {
+        return Notification::where('user_id', $request->user()->id)->whereNull('read_at')->count();
     }
 }

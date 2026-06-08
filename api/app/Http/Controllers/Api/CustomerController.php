@@ -24,7 +24,7 @@ class CustomerController extends Controller
         summary: 'Lightweight customer picker list (contractor or admin)',
         security: [['bearerAuth' => []]],
         parameters: [new OA\Parameter(name: 'search', in: 'query', schema: new OA\Schema(type: 'string'))],
-        responses: [new OA\Response(response: 200, description: '[{id, full_name, account_email}]')]
+        responses: [new OA\Response(response: 200, description: '[{id, full_name}]')]
     )]
     public function options(Request $request): JsonResponse
     {
@@ -35,7 +35,7 @@ class CustomerController extends Controller
             ->when($request->filled('search'), fn ($q) => $q->where('full_name', 'like', '%'.$request->query('search').'%'))
             ->orderBy('full_name')
             ->limit(100)
-            ->get(['id', 'full_name', 'account_email']);
+            ->get(['id', 'full_name']);
 
         return response()->json(['data' => $customers]);
     }

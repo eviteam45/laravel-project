@@ -36,8 +36,9 @@ class AuditLogController extends Controller
         $logs = AuditLog::query()
             ->with('user:id,name')
             ->filter($request)
-            ->latest();
+            ->latest()
+            ->latest('id');
 
-        return AuditLogResource::collection($this->paginated($logs, $request, defaultPerPage: 25));
+        return AuditLogResource::collection($this->cursorPaginated($logs, $request));
     }
 }

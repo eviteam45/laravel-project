@@ -2,7 +2,7 @@
 
 namespace App\Http\Requests;
 
-use App\Models\Project;
+use App\Enums\ProjectStatus;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -16,7 +16,7 @@ class TransitionProjectRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'to' => ['required', Rule::in(Project::STATUSES)],
+            'to' => ['required', Rule::enum(ProjectStatus::class)],
             'reason' => ['nullable', 'string', 'max:1000'],
         ];
     }

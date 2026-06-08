@@ -14,21 +14,17 @@ class AuthTest extends TestCase
 
     public function test_a_customer_can_register_and_gets_a_customer_profile(): void
     {
-        $response = $this->postJson('/api/register', [
+        $this->postJson('/api/register', [
             'name' => 'Jane Doe',
             'email' => 'jane@example.com',
             'password' => 'password123',
             'password_confirmation' => 'password123',
             'role' => 'customer',
             'address' => '1 Solar Way',
-        ]);
+        ])->assertStatus(202)->assertJsonMissingPath('token');
 
-        $response->assertCreated()
-            ->assertJsonStructure(['user' => ['id', 'name', 'email', 'role'], 'token'])
-            ->assertJsonPath('user.role', 'customer');
-        $response->assertJsonMissingPath('user.password');
-
-        $userId = $response->json('user.id');
+        $this->assertDatabaseHas('users', ['email' => 'jane@example.com', 'role' => 'customer']);
+        $userId = User::where('email', 'jane@example.com')->value('id');
         $this->assertDatabaseHas('customers', ['user_id' => $userId, 'full_name' => 'Jane Doe']);
         $this->assertDatabaseMissing('contractors', ['user_id' => $userId]);
     }
@@ -44,7 +40,9 @@ class AuthTest extends TestCase
             'company_name' => null,
             'license_no' => null,
             'region' => null,
-        ])->assertCreated()->assertJsonPath('user.role', 'customer');
+        ])->assertStatus(202);
+
+        $this->assertDatabaseHas('users', ['email' => 'nadia@example.com', 'role' => 'customer']);
     }
 
     public function test_a_contractor_registration_requires_and_creates_a_company_profile(): void
@@ -58,18 +56,17 @@ class AuthTest extends TestCase
             'role' => 'contractor',
         ])->assertStatus(422)->assertJsonValidationErrors('company_name');
 
-        $response = $this->postJson('/api/register', [
+        $this->postJson('/api/register', [
             'name' => 'Bob Builder',
             'email' => 'bob@example.com',
             'password' => 'password123',
             'password_confirmation' => 'password123',
             'role' => 'contractor',
             'company_name' => 'Bob Solar LLC',
-        ]);
+        ])->assertStatus(202);
 
-        $response->assertCreated()->assertJsonPath('user.role', 'contractor');
         $this->assertDatabaseHas('contractors', [
-            'user_id' => $response->json('user.id'),
+            'user_id' => User::where('email', 'bob@example.com')->value('id'),
             'company_name' => 'Bob Solar LLC',
         ]);
     }
@@ -97,19 +94,19 @@ class AuthTest extends TestCase
             ->assertJsonValidationErrors(['name', 'email', 'password']);
     }
 
-    public function test_registration_rejects_a_duplicate_email(): void
+    public function test_registration_does_not_reveal_an_existing_email(): void
     {
         User::factory()->create(['email' => 'taken@example.com']);
 
-        $response = $this->postJson('/api/register', [
+        $this->postJson('/api/register', [
             'name' => 'Someone',
             'email' => 'taken@example.com',
             'password' => 'password123',
             'password_confirmation' => 'password123',
             'role' => 'customer',
-        ]);
+        ])->assertStatus(202)->assertJsonMissingPath('token');
 
-        $response->assertStatus(422)->assertJsonValidationErrors('email');
+        $this->assertSame(1, User::where('email', 'taken@example.com')->count());
     }
 
     public function test_a_user_can_log_in_with_valid_credentials(): void
@@ -159,6 +156,21 @@ class AuthTest extends TestCase
             ->assertOk()
             ->assertJsonPath('id', $user->id)
             ->assertJsonPath('email', $user->email);
+    }
+
+    public function test_an_active_tokens_expiry_slides_forward(): void
+    {
+        config(['sanctum.expiration' => 60]);
+
+        $user = User::factory()->create();
+        $token = $user->createToken('api');
+        $token->accessToken->forceFill(['expires_at' => now()->addMinutes(5)])->save();
+
+        $this->withToken($token->plainTextToken)->getJson('/api/user')->assertOk();
+
+        $this->assertTrue(
+            $token->accessToken->fresh()->expires_at->greaterThan(now()->addMinutes(50)),
+        );
     }
 
     public function test_login_is_rate_limited(): void

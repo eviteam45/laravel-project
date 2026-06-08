@@ -43,6 +43,6 @@ class AuditLog extends Model
         return $query
             ->when($request->filled('action'), fn ($q) => $q->where('action', $request->query('action')))
             ->when($request->filled('user_id'), fn ($q) => $q->where('user_id', $request->integer('user_id')))
-            ->when($request->filled('subject_type'), fn ($q) => $q->where('subject_type', 'like', '%'.$request->query('subject_type').'%'));
+            ->when($request->filled('subject_type'), fn ($q) => $q->where('subject_type', $request->query('subject_type')));
     }
 }

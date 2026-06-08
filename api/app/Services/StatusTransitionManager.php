@@ -35,12 +35,12 @@ abstract class StatusTransitionManager
             return array_keys($edges);
         }
 
-        return array_keys(array_filter($edges, fn (array $roles) => in_array($actor->role, $roles, true)));
+        return array_keys(array_filter($edges, fn (array $roles) => in_array($actor->role->value, $roles, true)));
     }
 
     public function transition(Model $subject, string $to, User $actor, array $context = []): Model
     {
-        $from = $subject->status;
+        $from = $subject->status->value;
 
         if (! $this->canTransition($from, $to)) {
             throw ValidationException::withMessages([
@@ -51,7 +51,7 @@ abstract class StatusTransitionManager
         if (! $actor->isAdmin()) {
             $roles = $this->graph()[$from][$to] ?? [];
 
-            if (! in_array($actor->role, $roles, true) || ! $this->ownerCheck($subject, $actor)) {
+            if (! in_array($actor->role->value, $roles, true) || ! $this->ownerCheck($subject, $actor)) {
                 throw new AuthorizationException('Your role is not permitted to make this transition.');
             }
         }

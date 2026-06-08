@@ -123,11 +123,22 @@ class DashboardTest extends TestCase
         $this->postJson("/api/notifications/{$foreign->id}/read")->assertForbidden();
     }
 
+    public function test_unread_count_endpoint_returns_the_callers_unread_total(): void
+    {
+        $user = User::factory()->create();
+        Notification::factory(3)->unread()->for($user)->create();
+        Notification::factory()->for($user)->create(['read_at' => now()]);
+        Notification::factory(2)->unread()->for(User::factory())->create();
+
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/notifications/unread-count')
+            ->assertOk()
+            ->assertJsonPath('unread_count', 3);
+    }
+
     public function test_dashboard_stats_does_not_lazy_load_relations(): void
     {
-        // Several applications across distinct projects (each with their own
-        // contractor/customer). If the recent_applications resource lazy-loaded
-        // project relations per row, this would be an N+1.
         IncentiveApplication::factory(4)->create(['status' => 'submitted']);
 
         $admin = User::factory()->admin()->create();

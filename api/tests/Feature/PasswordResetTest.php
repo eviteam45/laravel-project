@@ -38,7 +38,7 @@ class PasswordResetTest extends TestCase
     public function test_a_valid_token_resets_the_password_and_revokes_existing_tokens(): void
     {
         $user = User::factory()->create();
-        $user->createToken('api'); // a pre-existing session
+        $user->createToken('api');
         $token = Password::createToken($user);
 
         $this->postJson('/api/reset-password', [

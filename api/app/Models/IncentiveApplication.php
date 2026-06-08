@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\ApplicationStatus;
+use App\Models\Concerns\FiltersByStatusCsv;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -13,19 +15,14 @@ use Illuminate\Http\Request;
 
 class IncentiveApplication extends Model
 {
-    use HasFactory, SoftDeletes;
-
-    public const STATUSES = ['started', 'in_progress', 'submitted', 'under_review', 'reserved', 'paid', 'rejected', 'withdrawn'];
+    use FiltersByStatusCsv, HasFactory, SoftDeletes;
 
     public const SORTABLE = ['status', 'submitted_at', 'created_at', 'updated_at'];
-
-    public const LOCKED_STATUSES = ['submitted', 'under_review', 'reserved', 'paid'];
 
     public const STEP_KEYS = ['eligibility', 'system', 'documents', 'banking', 'review'];
 
     protected $fillable = [
         'project_id',
-        'status',
         'current_step',
         'submitted_at',
         'incentive_amount',
@@ -36,7 +33,16 @@ class IncentiveApplication extends Model
         return [
             'submitted_at' => 'datetime',
             'incentive_amount' => 'decimal:2',
+            'status' => ApplicationStatus::class,
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::forceDeleted(function (IncentiveApplication $application) {
+            $application->documents()->get()->each->delete();
+            $application->notes()->delete();
+        });
     }
 
     public function project(): BelongsTo
@@ -67,14 +73,24 @@ class IncentiveApplication extends Model
     public function scopeFilter(Builder $query, Request $request): Builder
     {
         return $query
-            ->when($request->filled('status'), fn ($q) => $q->whereIn('status', array_filter(explode(',', (string) $request->query('status')))))
+            ->whereStatusCsv($request->query('status'))
             ->when($request->filled('project_id'), fn ($q) => $q->where('project_id', $request->integer('project_id')))
-            ->when($request->filled('contractor_id'), fn ($q) => $q->whereHas('project', fn ($p) => $p->where('contractor_id', $request->integer('contractor_id'))))
+            ->when($request->filled('contractor_id'), fn ($q) => $q->where('contractor_id', $request->integer('contractor_id')))
             ->when($request->filled('region'), fn ($q) => $q->whereHas('project.contractor', fn ($c) => $c->where('region', $request->query('region'))))
             ->when($request->filled('search'), function ($q) use ($request) {
-                $term = '%'.$request->query('search').'%';
-                $q->whereHas('project', fn ($p) => $p->where('name', 'like', $term)
-                    ->orWhereHas('contractor', fn ($c) => $c->where('company_name', 'like', $term)));
+                $term = (string) $request->query('search');
+                $mysql = $q->getConnection()->getDriverName() === 'mysql';
+
+                $q->whereHas('project', function ($p) use ($term, $mysql) {
+                    if ($mysql) {
+                        $p->whereFullText(['name', 'address'], $term)
+                            ->orWhereHas('contractor', fn ($c) => $c->whereFullText('company_name', $term));
+                    } else {
+                        $like = '%'.$term.'%';
+                        $p->where('name', 'like', $like)
+                            ->orWhereHas('contractor', fn ($c) => $c->where('company_name', 'like', $like));
+                    }
+                });
             })
             ->when($request->filled('submitted_from'), fn ($q) => $q->whereDate('submitted_at', '>=', $request->date('submitted_from')))
             ->when($request->filled('submitted_to'), fn ($q) => $q->whereDate('submitted_at', '<=', $request->date('submitted_to')));
@@ -82,7 +98,7 @@ class IncentiveApplication extends Model
 
     public function isLocked(): bool
     {
-        return in_array($this->status, self::LOCKED_STATUSES, true);
+        return in_array($this->status, ApplicationStatus::locked(), true);
     }
 
     public function scopeVisibleTo(Builder $query, User $user): Builder
@@ -91,7 +107,23 @@ class IncentiveApplication extends Model
             return $query;
         }
 
-        return $query->whereHas('project', fn (Builder $q) => $q->visibleTo($user));
+        return $query->where(function (Builder $q) use ($user) {
+            $matched = false;
+
+            if ($user->contractor) {
+                $q->orWhere('contractor_id', $user->contractor->id);
+                $matched = true;
+            }
+
+            if ($user->customer) {
+                $q->orWhere('customer_id', $user->customer->id);
+                $matched = true;
+            }
+
+            if (! $matched) {
+                $q->whereRaw('1 = 0');
+            }
+        });
     }
 
     public function completedStepKeys(): array

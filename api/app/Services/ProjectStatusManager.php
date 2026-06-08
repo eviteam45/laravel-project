@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\ProcessProjectTransition;
 use App\Models\Project;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
@@ -34,7 +35,7 @@ class ProjectStatusManager extends StatusTransitionManager
     protected function sideEffects(Model $subject, string $from, string $to, User $actor, array $context): void
     {
         if ($subject instanceof Project) {
-            app(TransitionNotifier::class)->notifyProjectTransition($subject, $from, $to, $actor->id);
+            ProcessProjectTransition::dispatch($subject->getKey(), $from, $to, $actor->id)->afterCommit();
         }
     }
 }

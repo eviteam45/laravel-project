@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\ApplicationStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SaveApplicationStepRequest;
 use App\Http\Resources\ApplicationStepResource;
@@ -47,7 +48,7 @@ class ApplicationStepController extends Controller
             ],
         );
 
-        if ($application->status === 'started') {
+        if ($application->status === ApplicationStatus::Started) {
             $status->transition($application, 'in_progress', $request->user());
         }
 

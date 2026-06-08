@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\IncentiveApplication;
 use App\Notifications\IncentiveReservedNotification;
 use App\Services\TransitionNotifier;
+use App\Support\DashboardCache;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -66,5 +67,9 @@ class ProcessApplicationTransition implements ShouldQueue
                 ->where('status', 'scheduled')
                 ->update(['status' => 'paid', 'paid_at' => now()]);
         }
+
+        DashboardCache::forget(
+            $notifier->recipients($application->project)->pluck('id')->push($this->actorId)
+        );
     }
 }

@@ -38,7 +38,7 @@ class DocumentTest extends TestCase
         ])->assertCreated()->assertJsonStructure(['data' => ['id', 'file_name', 'download_url']]);
 
         $this->assertDatabaseHas('documents', [
-            'documentable_type' => Project::class,
+            'documentable_type' => 'project',
             'documentable_id' => $project->id,
             'type' => 'contract',
         ]);
@@ -106,7 +106,6 @@ class DocumentTest extends TestCase
             'type' => 'contract',
         ])->json('data.id');
 
-        // A validly-signed URL minted for an unrelated user must not grant access.
         [$stranger] = $this->contractorOwner();
         $url = URL::temporarySignedRoute('documents.download', now()->addMinutes(30), [
             'document' => $id,
@@ -129,7 +128,6 @@ class DocumentTest extends TestCase
             'type' => 'contract',
         ])->json('data.id');
 
-        // No signature → the `signed` middleware rejects before the handler runs.
         $this->get("/api/documents/{$id}/download?u={$user->id}")->assertForbidden();
     }
 }

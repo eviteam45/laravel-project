@@ -48,7 +48,7 @@ class IndexCapabilitiesTest extends TestCase
             ->assertJsonCount(2, 'data');
     }
 
-    public function test_applications_support_search_and_region_filters(): void
+    public function test_applications_support_region_filter(): void
     {
         $north = Contractor::factory()->create(['region' => 'North', 'company_name' => 'NorthSolar']);
         $alpha = Project::factory()->for($north)->create(['name' => 'Alpha Roof']);
@@ -59,10 +59,6 @@ class IndexCapabilitiesTest extends TestCase
         IncentiveApplication::factory()->for($beta)->create();
 
         Sanctum::actingAs($this->admin());
-
-        $this->getJson('/api/applications?search=Alpha')->assertOk()->assertJsonCount(1, 'data');
-
-        $this->getJson('/api/applications?search=NorthSolar')->assertOk()->assertJsonCount(1, 'data');
 
         $this->getJson('/api/applications?region=North')->assertOk()->assertJsonCount(1, 'data');
     }

@@ -25,7 +25,7 @@ class AuditLogTest extends TestCase
             ->assertOk()
             ->assertJsonStructure(['data' => [['id', 'action', 'subject_type', 'subject_id', 'user']], 'meta'])
             ->assertJsonPath('data.0.action', 'status_changed')
-            ->assertJsonPath('data.0.subject_type', 'IncentiveApplication');
+            ->assertJsonPath('data.0.subject_type', 'application');
 
         $this->getJson('/api/audit-logs?action=status_changed')->assertOk()->assertJsonCount(1, 'data');
         $this->getJson('/api/audit-logs?action=nonexistent')->assertOk()->assertJsonCount(0, 'data');

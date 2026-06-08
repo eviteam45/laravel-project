@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\Role;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -9,8 +10,6 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Http\Request;
 use Illuminate\Notifications\Notifiable;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
@@ -37,6 +36,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'last_login_at' => 'datetime',
             'password' => 'hashed',
+            'role' => Role::class,
         ];
     }
 
@@ -72,17 +72,17 @@ class User extends Authenticatable
 
     public function isContractor(): bool
     {
-        return $this->role === 'contractor';
+        return $this->role === Role::Contractor;
     }
 
     public function isCustomer(): bool
     {
-        return $this->role === 'customer';
+        return $this->role === Role::Customer;
     }
 
     public function isAdmin(): bool
     {
-        return $this->role === 'admin';
+        return $this->role === Role::Admin;
     }
 
     public function scopeFilter(Builder $query, Request $request): Builder
@@ -93,45 +93,5 @@ class User extends Authenticatable
                 $q->where(fn ($s) => $s->where('name', 'like', $term)->orWhere('email', 'like', $term));
             })
             ->when($request->filled('role'), fn ($q) => $q->where('role', $request->query('role')));
-    }
-
-    public function changeRole(string $role): void
-    {
-        DB::transaction(function () use ($role) {
-
-            if ($role !== 'contractor' && $this->contractor) {
-                if ($this->contractor->projects()->exists()) {
-                    throw ValidationException::withMessages([
-                        'role' => ['This user has projects as a contractor; reassign or remove them before changing role.'],
-                    ]);
-                }
-                $this->contractor->delete();
-                $this->setRelation('contractor', null);
-            }
-
-            if ($role !== 'customer' && $this->customer) {
-                if ($this->customer->projects()->exists()) {
-                    throw ValidationException::withMessages([
-                        'role' => ['This user has projects as a customer; reassign or remove them before changing role.'],
-                    ]);
-                }
-                $this->customer->delete();
-                $this->setRelation('customer', null);
-            }
-
-            $this->update(['role' => $role]);
-
-            if ($role === 'contractor' && ! $this->contractor) {
-                $this->contractor()->create([
-                    'company_name' => $this->name,
-                    'status' => 'active',
-                ]);
-            } elseif ($role === 'customer' && ! $this->customer) {
-                $this->customer()->create([
-                    'full_name' => $this->name,
-                    'account_email' => $this->email,
-                ]);
-            }
-        });
     }
 }

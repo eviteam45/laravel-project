@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\ApplicationStatus;
 use App\Http\Controllers\Concerns\HandlesIndexQueries;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreIncentiveApplicationRequest;
@@ -74,10 +75,13 @@ class IncentiveApplicationController extends Controller
             ]);
         }
 
-        $application = $project->application()->create([
-            'status' => 'started',
+        $application = $project->application()->make([
             'current_step' => IncentiveApplication::STEP_KEYS[0],
         ]);
+        $application->status = ApplicationStatus::Started;
+        $application->contractor_id = $project->contractor_id;
+        $application->customer_id = $project->customer_id;
+        $application->save();
 
         return new IncentiveApplicationResource($application->load('steps'));
     }

@@ -2,7 +2,7 @@
 
 namespace App\Http\Requests;
 
-use App\Models\IncentiveApplication;
+use App\Enums\ApplicationStatus;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -17,7 +17,7 @@ class TransitionApplicationRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'to' => ['required', Rule::in(IncentiveApplication::STATUSES)],
+            'to' => ['required', Rule::enum(ApplicationStatus::class)],
             'incentive_amount' => ['nullable', 'numeric', 'min:0'],
             'reason' => ['nullable', 'string', 'max:1000'],
         ];

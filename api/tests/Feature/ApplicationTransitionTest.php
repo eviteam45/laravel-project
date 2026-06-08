@@ -59,7 +59,7 @@ class ApplicationTransitionTest extends TestCase
         $this->assertDatabaseHas('audit_logs', [
             'user_id' => $this->admin->id,
             'action' => 'status_changed',
-            'subject_type' => IncentiveApplication::class,
+            'subject_type' => 'application',
             'subject_id' => $this->application->id,
         ]);
     }
@@ -92,7 +92,7 @@ class ApplicationTransitionTest extends TestCase
 
     public function test_reserving_requires_an_incentive_amount(): void
     {
-        $this->application->update(['status' => 'under_review']);
+        $this->application->forceFill(['status' => 'under_review'])->save();
         Sanctum::actingAs($this->admin);
 
         $this->transition(['to' => 'reserved'])
@@ -107,8 +107,6 @@ class ApplicationTransitionTest extends TestCase
 
         $this->transition(['to' => 'under_review'])->assertOk();
 
-        // Notifications/payments are produced by the queued job (covered by
-        // ProcessApplicationTransitionTest); here we assert it is enqueued.
         Bus::assertDispatched(
             ProcessApplicationTransition::class,
             fn (ProcessApplicationTransition $job) => $job->applicationId === $this->application->id
@@ -120,7 +118,7 @@ class ApplicationTransitionTest extends TestCase
     public function test_reserving_persists_the_amount_and_queues_the_job(): void
     {
         Bus::fake();
-        $this->application->update(['status' => 'under_review']);
+        $this->application->forceFill(['status' => 'under_review'])->save();
         Sanctum::actingAs($this->admin);
 
         $this->transition(['to' => 'reserved', 'incentive_amount' => 4200])
