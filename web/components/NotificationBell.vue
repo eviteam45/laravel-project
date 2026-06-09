@@ -7,7 +7,12 @@ const { items, unreadCount: unread } = storeToRefs(store)
 const open = ref(false)
 
 function prettyType(t: string) {
-  return t.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+  return t.replaceAll('_', ' ').replace(/\b\w/g, c => c.toUpperCase())
+}
+
+function toggle() {
+  open.value = !open.value
+  if (open.value) store.load()
 }
 
 const root = ref<HTMLElement | null>(null)
@@ -17,14 +22,24 @@ function onDocClick(e: MouseEvent) {
 
 let timer: ReturnType<typeof setInterval> | undefined
 
+function pollCount() {
+  if (!document.hidden) store.loadCount()
+}
+
+function onVisibility() {
+  if (!document.hidden) store.loadCount()
+}
+
 onMounted(() => {
-  store.load()
-  timer = setInterval(() => store.load(), 30000)
+  store.loadCount()
+  timer = setInterval(pollCount, 30000)
   document.addEventListener('click', onDocClick)
+  document.addEventListener('visibilitychange', onVisibility)
 })
 onBeforeUnmount(() => {
   if (timer) clearInterval(timer)
   document.removeEventListener('click', onDocClick)
+  document.removeEventListener('visibilitychange', onVisibility)
 })
 </script>
 
@@ -37,7 +52,8 @@ onBeforeUnmount(() => {
       type="button"
       class="relative rounded-md p-1.5 text-gray-600 hover:bg-gray-100"
       aria-label="Notifications"
-      @click="open = !open"
+      :aria-expanded="open"
+      @click="toggle"
     >
       <svg
         class="h-5 w-5"

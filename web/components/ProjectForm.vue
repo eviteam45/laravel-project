@@ -10,6 +10,7 @@ const props = defineProps<{
 }>()
 
 const { user } = useAuth()
+const { contractorOptions, customerOptions } = useProjects()
 
 const showContractorPicker = computed(() => user.value?.role === 'admin' && !props.initial?.id)
 
@@ -38,9 +39,8 @@ const submit = handleSubmit(async (values) => {
   try {
     await props.onSubmit(values)
   }
-  catch (e: any) {
-    if (e?.data?.errors) setErrors(mapServerErrors(e.data.errors))
-    else general.value = e?.data?.message ?? 'Something went wrong.'
+  catch (e) {
+    general.value = applyServerErrors(e, setErrors) ?? 'Something went wrong.'
   }
 })
 </script>
@@ -79,8 +79,12 @@ const submit = handleSubmit(async (values) => {
 
     <div v-if="showContractorPicker">
       <label class="label">Contractor</label>
-      <ContractorSelect
+      <EntitySelect
         v-model="contractorId"
+        :search="contractorOptions"
+        label-key="company_name"
+        placeholder="Search contractor by company…"
+        noun="contractors"
         :initial-label="initial?.contractor?.company_name"
       />
       <p
@@ -93,8 +97,12 @@ const submit = handleSubmit(async (values) => {
 
     <div>
       <label class="label">Customer</label>
-      <CustomerSelect
+      <EntitySelect
         v-model="customerId"
+        :search="customerOptions"
+        label-key="full_name"
+        placeholder="Search customer by name…"
+        noun="customers"
         :initial-label="initial?.customer?.full_name"
       />
       <p

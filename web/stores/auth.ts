@@ -3,7 +3,7 @@ import type { Credentials, RegisterPayload, Role, User } from '~/types'
 
 export const useAuthStore = defineStore('auth', () => {
   const api = useApi()
-  const token = useCookie<string | null>('token', { sameSite: 'lax' })
+  const token = useCookie<string | null>('token', { sameSite: 'lax', secure: !import.meta.dev })
   const user = ref<User | null>(null)
 
   const isLoggedIn = computed(() => !!token.value)
@@ -13,19 +13,28 @@ export const useAuthStore = defineStore('auth', () => {
     return !!user.value?.role && roles.includes(user.value.role)
   }
 
-  async function fetchUser(): Promise<User | null> {
+  let inflight: Promise<User | null> | null = null
+
+  async function fetchUser(force = false): Promise<User | null> {
     if (!token.value) {
       user.value = null
       return null
     }
-    try {
-      user.value = await api<User>('/user')
-    }
-    catch {
-      token.value = null
-      user.value = null
-    }
-    return user.value
+    if (user.value && !force) return user.value
+    if (inflight) return inflight
+
+    inflight = (async () => {
+      try {
+        user.value = await api<User>('/user')
+      }
+      catch {
+        token.value = null
+        user.value = null
+      }
+      return user.value
+    })().finally(() => { inflight = null })
+
+    return inflight
   }
 
   async function login(credentials: Credentials): Promise<User> {
@@ -36,12 +45,8 @@ export const useAuthStore = defineStore('auth', () => {
     return res.user
   }
 
-  async function register(payload: RegisterPayload): Promise<User> {
-    const res = await api<{ token: string, user: User }>('/register', { method: 'POST', body: payload })
-    clearNuxtData()
-    token.value = res.token
-    user.value = res.user
-    return res.user
+  async function register(payload: RegisterPayload): Promise<void> {
+    await api<{ message: string }>('/register', { method: 'POST', body: payload })
   }
 
   async function logout(): Promise<void> {

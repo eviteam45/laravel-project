@@ -19,9 +19,8 @@ const onSubmit = handleSubmit(async (values) => {
     await forgotPassword(values.email)
     sent.value = true
   }
-  catch (e: any) {
-    if (e?.data?.errors) setErrors(mapServerErrors(e.data.errors))
-    else general.value = e?.data?.message ?? 'Could not send the reset link.'
+  catch (e) {
+    general.value = applyServerErrors(e, setErrors) ?? 'Could not send the reset link.'
   }
 })
 </script>

@@ -27,9 +27,8 @@ const onSubmit = handleSubmit(async (values) => {
     done.value = true
     setTimeout(() => navigateTo('/login'), 1500)
   }
-  catch (e: any) {
-    if (e?.data?.errors) setErrors(mapServerErrors(e.data.errors))
-    else general.value = e?.data?.message ?? 'Could not reset your password.'
+  catch (e) {
+    general.value = applyServerErrors(e, setErrors) ?? 'Could not reset your password.'
   }
 })
 </script>
@@ -78,14 +77,13 @@ const onSubmit = handleSubmit(async (values) => {
               for="password"
               class="label"
             >New password</label>
-            <input
+            <PasswordInput
               id="password"
               v-model="password"
               v-bind="passwordAttrs"
               class="input"
-              type="password"
               autocomplete="new-password"
-            >
+            />
             <p
               v-if="errors.password"
               class="field-error"
@@ -98,14 +96,13 @@ const onSubmit = handleSubmit(async (values) => {
               for="password_confirmation"
               class="label"
             >Confirm password</label>
-            <input
+            <PasswordInput
               id="password_confirmation"
               v-model="passwordConfirmation"
               v-bind="passwordConfirmationAttrs"
               class="input"
-              type="password"
               autocomplete="new-password"
-            >
+            />
             <p
               v-if="errors.password_confirmation"
               class="field-error"

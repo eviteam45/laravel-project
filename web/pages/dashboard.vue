@@ -2,10 +2,8 @@
 import { storeToRefs } from 'pinia'
 import { formatMoney } from '~/composables/useDashboard'
 
-const { user, fetchUser } = useAuth()
+const { user } = useAuth()
 const { stats } = useDashboard()
-
-if (!user.value) await fetchUser()
 
 const scope = computed(() => user.value?.id ?? 'guest')
 
@@ -20,7 +18,6 @@ const { items: notifs } = storeToRefs(notifStore)
 onMounted(() => notifStore.load())
 
 const s = computed(() => statsData.value)
-
 async function clearNotifs() {
   await notifStore.markAll()
 }
@@ -51,7 +48,7 @@ function prettyType(type: string) {
             v-for="(n, k) in s.projects.by_status"
             :key="k"
           >
-            <span class="font-semibold text-gray-900">{{ n }}</span> {{ String(k).replace('_', ' ') }}
+            <span class="font-semibold text-gray-900">{{ n }}</span> {{ String(k).replaceAll('_', ' ') }}
           </li>
         </ul>
       </div>
@@ -68,7 +65,7 @@ function prettyType(type: string) {
             v-for="(n, k) in s.applications.by_status"
             :key="k"
           >
-            <span class="font-semibold text-gray-900">{{ n }}</span> {{ String(k).replace('_', ' ') }}
+            <span class="font-semibold text-gray-900">{{ n }}</span> {{ String(k).replaceAll('_', ' ') }}
           </li>
         </ul>
       </div>
@@ -103,7 +100,7 @@ function prettyType(type: string) {
               :to="`/applications/${a.id}`"
               class="font-medium"
             >{{ a.project?.name ?? `Application #${a.id}` }}</NuxtLink>
-            <span class="badge badge-emerald">{{ a.status.replace('_', ' ') }}</span>
+            <span class="badge badge-emerald">{{ a.status.replaceAll('_', ' ') }}</span>
           </li>
         </ul>
         <p

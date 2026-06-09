@@ -101,7 +101,7 @@ const meta = computed(() => data.value?.meta)
           :key="s"
           :value="s"
         >
-          {{ s.replace('_', ' ') }}
+          {{ s.replaceAll('_', ' ') }}
         </option>
       </select>
       <select
@@ -188,7 +188,7 @@ const meta = computed(() => data.value?.meta)
                 {{ p.name }}
               </td>
               <td class="px-4 py-3">
-                <span class="badge badge-blue">{{ p.status.replace('_', ' ') }}</span>
+                <span class="badge badge-blue">{{ p.status.replaceAll('_', ' ') }}</span>
               </td>
               <td class="px-4 py-3 text-gray-600">
                 {{ p.capacity_kw ?? '—' }} kW

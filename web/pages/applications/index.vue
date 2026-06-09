@@ -86,7 +86,7 @@ const meta = computed(() => data.value?.meta)
           :key="s"
           :value="s"
         >
-          {{ s.replace('_', ' ') }}
+          {{ s.replaceAll('_', ' ') }}
         </option>
       </select>
       <select
@@ -179,7 +179,7 @@ const meta = computed(() => data.value?.meta)
                 </span>
               </td>
               <td class="px-4 py-3">
-                <span class="badge badge-emerald">{{ a.status.replace('_', ' ') }}</span>
+                <span class="badge badge-emerald">{{ a.status.replaceAll('_', ' ') }}</span>
               </td>
               <td class="px-4 py-3 text-gray-600">
                 {{ fmtDate(a.submitted_at) }}

@@ -1,21 +1,22 @@
 <script setup lang="ts">
-interface CustomerOption {
-  id: number
-  full_name: string
-  account_email?: string
-}
+import type { ApiError } from '~/types'
+
+interface Option { id: number, [key: string]: unknown }
 
 const props = defineProps<{
   modelValue: number | null | undefined
+  search: (q?: string) => Promise<{ data?: Option[] }>
+  labelKey: string
+  placeholder?: string
+  noun?: string
   initialLabel?: string
 }>()
 
 const emit = defineEmits<{ 'update:modelValue': [number | null] }>()
 
-const { customerOptions } = useProjects()
-
+const noun = computed(() => props.noun ?? 'results')
 const query = ref(props.initialLabel ?? '')
-const results = ref<CustomerOption[]>([])
+const results = ref<Option[]>([])
 const open = ref(false)
 const loading = ref(false)
 const error = ref('')
@@ -28,17 +29,18 @@ function runSearch() {
   clearTimeout(timer)
   timer = setTimeout(async () => {
     try {
-      results.value = (await customerOptions(query.value || undefined)).data ?? []
+      results.value = (await props.search(query.value || undefined)).data ?? []
     }
-    catch (e: any) {
+    catch (e) {
       results.value = []
-      const status = e?.status ?? e?.statusCode ?? e?.response?.status
+      const err = e as ApiError
+      const status = err?.status ?? err?.statusCode ?? err?.response?.status
       error.value
         = status === 403
-          ? 'Only contractors and admins can list customers — check which role you’re logged in as.'
+          ? `You don’t have permission to list ${noun.value} — check which role you’re logged in as.`
           : status === 401
             ? 'Your session expired — please log in again.'
-            : (e?.data?.message ?? 'Could not load customers (is the API running on :8000?).')
+            : (err?.data?.message ?? `Could not load ${noun.value} (is the API running on :8000?).`)
     }
     finally {
       loading.value = false
@@ -56,9 +58,9 @@ function onFocus() {
   if (!results.value.length) runSearch()
 }
 
-function select(c: CustomerOption) {
-  emit('update:modelValue', c.id)
-  query.value = c.full_name
+function select(item: Option) {
+  emit('update:modelValue', item.id)
+  query.value = String(item[props.labelKey] ?? '')
   open.value = false
 }
 
@@ -79,7 +81,7 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocClick))
       v-model="query"
       class="input"
       type="text"
-      placeholder="Search customer by name…"
+      :placeholder="placeholder"
       autocomplete="off"
       @focus="onFocus"
       @input="onInput"
@@ -105,19 +107,15 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocClick))
         v-else-if="!results.length"
         class="px-3 py-2 text-sm text-gray-400"
       >
-        No customers found.
+        No {{ noun }} found.
       </li>
       <li
-        v-for="c in results"
-        :key="c.id"
+        v-for="item in results"
+        :key="item.id"
         class="cursor-pointer px-3 py-2 text-sm hover:bg-emerald-50"
-        @click="select(c)"
+        @click="select(item)"
       >
-        <span class="font-medium text-gray-900">{{ c.full_name }}</span>
-        <span
-          v-if="c.account_email"
-          class="text-gray-400"
-        > — {{ c.account_email }}</span>
+        <span class="font-medium text-gray-900">{{ item[labelKey] }}</span>
       </li>
     </ul>
   </div>

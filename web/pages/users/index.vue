@@ -33,8 +33,8 @@ async function changeRole(id: number, role: Role) {
     await updateRole(id, role)
     await refresh()
   }
-  catch (e: any) {
-    error.value = e?.data?.errors?.role?.[0] ?? e?.data?.message ?? 'Could not change role.'
+  catch (e) {
+    error.value = apiErrorMessage(e, 'Could not change role.')
     await refresh()
   }
   finally {

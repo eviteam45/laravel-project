@@ -23,40 +23,21 @@ async function onEdit(payload: Record<string, any>) {
   await refresh()
 }
 
-const fileInput = ref<HTMLInputElement | null>(null)
 const docType = ref('contract')
-const uploading = ref(false)
-const docError = ref('')
-
-async function onUpload(event: Event) {
-  const file = (event.target as HTMLInputElement).files?.[0]
-  if (!file) return
-
-  const uploadError = validateUpload(file)
-  if (uploadError) {
-    docError.value = uploadError
-    if (fileInput.value) fileInput.value.value = ''
-    return
-  }
-
-  uploading.value = true
-  docError.value = ''
-  try {
-    await uploadDocument(id, file, docType.value)
-    await refresh()
-  }
-  catch (e: any) {
-    docError.value = e?.data?.message ?? 'Upload failed.'
-  }
-  finally {
-    uploading.value = false
-    if (fileInput.value) fileInput.value.value = ''
-  }
-}
+const { fileInput, uploading, error: docError, onUpload } = useFileUpload({
+  upload: async (file, type) => {
+    const res = await uploadDocument(id, file, type)
+    if (data.value?.data) (data.value.data.documents ??= []).push(res.data)
+    return res
+  },
+  type: docType,
+})
 
 async function removeDoc(docId: number) {
   await deleteDocument(docId)
-  await refresh()
+  if (data.value?.data?.documents) {
+    data.value.data.documents = data.value.data.documents.filter(d => d.id !== docId)
+  }
 }
 
 const statusActions = computed(() =>
@@ -67,13 +48,11 @@ async function doTransition(to: string) {
   transitionError.value = ''
   busy.value = true
   try {
-    await transition(id, to)
-    await refresh()
+    const res = await transition(id, to)
+    if (data.value) data.value.data.status = res.data.status
   }
-  catch (e: any) {
-    transitionError.value = e?.data?.errors
-      ? (Object.values(e.data.errors)[0] as string[])[0]
-      : (e?.data?.message ?? 'Transition failed.')
+  catch (e) {
+    transitionError.value = apiErrorMessage(e, 'Transition failed.')
   }
   finally {
     busy.value = false
@@ -97,10 +76,8 @@ async function destroy() {
     await remove(id)
     await navigateTo('/projects')
   }
-  catch (e: any) {
-    transitionError.value = e?.data?.errors
-      ? (Object.values(e.data.errors)[0] as string[])[0]
-      : (e?.data?.message ?? 'Delete failed.')
+  catch (e) {
+    transitionError.value = apiErrorMessage(e, 'Delete failed.')
   }
 }
 </script>
@@ -115,7 +92,7 @@ async function destroy() {
     <div class="mb-5 mt-2 flex items-start justify-between gap-4">
       <div>
         <h1>{{ project.name }}</h1>
-        <span class="badge badge-blue mt-1">{{ project.status.replace('_', ' ') }}</span>
+        <span class="badge badge-blue mt-1">{{ project.status.replaceAll('_', ' ') }}</span>
       </div>
       <div
         v-if="canManageProject"
@@ -156,7 +133,7 @@ async function destroy() {
         :disabled="busy"
         @click="doTransition(t)"
       >
-        {{ t.replace('_', ' ') }}
+        {{ t.replaceAll('_', ' ') }}
       </button>
     </div>
 
@@ -214,7 +191,7 @@ async function destroy() {
         class="flex items-center justify-between"
       >
         <p class="text-sm text-gray-700">
-          <span class="badge badge-emerald">{{ project.application.status.replace('_', ' ') }}</span>
+          <span class="badge badge-emerald">{{ project.application.status.replaceAll('_', ' ') }}</span>
           <span class="ml-2 text-gray-500">current step: {{ project.application.current_step ?? '—' }}</span>
         </p>
         <NuxtLink
@@ -298,6 +275,7 @@ async function destroy() {
           <a
             :href="d.download_url"
             target="_blank"
+            rel="noopener noreferrer"
             class="font-medium"
           >{{ d.file_name }}</a>
           <span class="badge">{{ d.type }}</span>

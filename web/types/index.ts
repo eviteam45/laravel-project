@@ -42,8 +42,29 @@ export interface Resource<T> {
   data: T
 }
 
+export interface CursorPaginated<T> {
+  data: T[]
+  meta: {
+    path: string
+    per_page: number
+    next_cursor: string | null
+    prev_cursor: string | null
+  }
+}
+
 export interface MessageResponse {
   message: string
+}
+
+/** Shape of a failed `$fetch` call against the API (Laravel error envelope). */
+export interface ApiError {
+  status?: number
+  statusCode?: number
+  response?: { status?: number }
+  data?: {
+    message?: string
+    errors?: Record<string, string[]>
+  }
 }
 
 export type ProjectStatus

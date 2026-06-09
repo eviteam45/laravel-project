@@ -1,4 +1,5 @@
 import type {
+  ApiError,
   ApplicationStep,
   DocumentFile,
   IncentiveApplication,
@@ -56,11 +57,11 @@ export const APPLICATION_TRANSITIONS: Record<string, Record<string, string[]>> =
   withdrawn: {},
 }
 
-export function fieldErrors(e: any): Record<string, string> {
+export function fieldErrors(e: unknown): Record<string, string> {
   const out: Record<string, string> = {}
-  const errors = e?.data?.errors ?? {}
+  const errors = (e as ApiError)?.data?.errors ?? {}
   for (const [key, messages] of Object.entries(errors)) {
-    out[key.replace(/^data\./, '')] = (messages as string[])[0]
+    out[key.replace(/^data\./, '')] = messages[0]
   }
   return out
 }
@@ -109,7 +110,7 @@ export const APPLICATION_STEP_SCHEMAS: Record<string, z.ZodTypeAny> = {
   }),
 }
 
-export function validateStep(key: string, data: Record<string, any>): Record<string, string> {
+export function validateStep(key: string, data: Record<string, unknown>): Record<string, string> {
   const schema = APPLICATION_STEP_SCHEMAS[key]
   if (!schema) return {}
 

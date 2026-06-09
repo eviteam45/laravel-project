@@ -5,7 +5,8 @@ export function useDashboard() {
 
   return {
     stats: () => api<DashboardStats>('/dashboard/stats'),
-    notifications: () => api<Paginated<AppNotification>>('/notifications'),
+    notifications: () => api<Paginated<AppNotification> & { unread_count: number }>('/notifications'),
+    unreadCount: () => api<{ unread_count: number }>('/notifications/unread-count'),
     markAllRead: () => api<{ marked_read: number }>('/notifications/read-all', { method: 'POST' }),
     markRead: (id: number | string) => api<Resource<AppNotification>>(`/notifications/${id}/read`, { method: 'POST' }),
   }

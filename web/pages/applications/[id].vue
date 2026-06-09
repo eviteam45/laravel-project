@@ -18,7 +18,9 @@ const STEPS = [
   { key: 'review', label: 'Review & submit' },
 ]
 
-const forms = reactive<Record<string, any>>({
+type StepForm = Record<string, string | number | boolean | null>
+
+const forms = reactive<Record<string, StepForm>>({
   eligibility: { owns_property: false, utility_provider: '', average_monthly_bill: null },
   system: { battery_oem: '', battery_model: '', quantity: 1, usable_capacity_kwh: null },
   banking: { account_holder_name: '', bank_name: '', routing_number: '', account_number: '', account_type: 'checking' },
@@ -30,10 +32,14 @@ function hydrate() {
     if (forms[step.step_key]) Object.assign(forms[step.step_key], step.fields ?? {})
   }
 }
-hydrate()
 
-const resumeStep = app.value?.current_step ?? 'eligibility'
-const active = ref<string>(STEPS.some(s => s.key === resumeStep) ? resumeStep : 'eligibility')
+const active = ref<string>('eligibility')
+
+watch(() => app.value?.id, () => {
+  hydrate()
+  const resume = app.value?.current_step ?? 'eligibility'
+  active.value = STEPS.some(s => s.key === resume) ? resume : 'eligibility'
+}, { immediate: true })
 const errors = ref<Record<string, string>>({})
 const general = ref('')
 const saving = ref(false)
@@ -41,7 +47,7 @@ const saving = ref(false)
 const locked = computed(() => !['started', 'in_progress'].includes(app.value?.status ?? ''))
 
 function isComplete(key: string): boolean {
-  return !!app.value?.steps?.find((s: any) => s.step_key === key)?.is_complete
+  return !!app.value?.steps?.find(s => s.step_key === key)?.is_complete
 }
 
 function indexOf(key: string) {
@@ -88,44 +94,22 @@ async function persist(key: string, complete: boolean) {
       if (next) active.value = next.key
     }
   }
-  catch (e: any) {
+  catch (e) {
     errors.value = fieldErrors(e)
-    if (!Object.keys(errors.value).length) general.value = e?.data?.message ?? 'Could not save step.'
+    if (!Object.keys(errors.value).length) general.value = apiErrorMessage(e, 'Could not save step.')
   }
   finally {
     saving.value = false
   }
 }
 
-const fileInput = ref<HTMLInputElement | null>(null)
 const docType = ref('proof')
-const uploading = ref(false)
-
-async function onUpload(event: Event) {
-  const file = (event.target as HTMLInputElement).files?.[0]
-  if (!file) return
-
-  const uploadError = validateUpload(file)
-  if (uploadError) {
-    general.value = uploadError
-    if (fileInput.value) fileInput.value.value = ''
-    return
-  }
-
-  uploading.value = true
-  general.value = ''
-  try {
-    await uploadDocument(id, file, docType.value)
-    await refresh()
-  }
-  catch (e: any) {
-    general.value = e?.data?.message ?? 'Upload failed.'
-  }
-  finally {
-    uploading.value = false
-    if (fileInput.value) fileInput.value.value = ''
-  }
-}
+const { fileInput, uploading, onUpload } = useFileUpload({
+  upload: (file, type) => uploadDocument(id, file, type),
+  type: docType,
+  onUploaded: refresh,
+  onError: (message) => { general.value = message },
+})
 
 async function removeDoc(docId: number) {
   await deleteDocument(docId)
@@ -150,10 +134,8 @@ async function onSubmit() {
     await submit(id)
     await refresh()
   }
-  catch (e: any) {
-    general.value = e?.data?.errors
-      ? (Object.values(e.data.errors)[0] as string[])[0]
-      : (e?.data?.message ?? 'Could not submit.')
+  catch (e) {
+    general.value = apiErrorMessage(e, 'Could not submit.')
   }
   finally {
     saving.value = false
@@ -172,16 +154,14 @@ async function doTransition(to: string) {
   general.value = ''
   transitioning.value = to
   try {
-    const extra: Record<string, any> = {}
+    const extra: Record<string, unknown> = {}
     if (to === 'reserved') extra.incentive_amount = reserveAmount.value
     if ((to === 'rejected' || to === 'withdrawn') && actionReason.value) extra.reason = actionReason.value
     await transition(id, to, extra)
     await refresh()
   }
-  catch (e: any) {
-    general.value = e?.data?.errors
-      ? (Object.values(e.data.errors)[0] as string[])[0]
-      : (e?.data?.message ?? 'Transition failed.')
+  catch (e) {
+    general.value = apiErrorMessage(e, 'Transition failed.')
   }
   finally {
     transitioning.value = ''
@@ -198,7 +178,7 @@ async function doTransition(to: string) {
 
     <div class="mb-4 mt-2 flex items-center gap-3">
       <h1>Incentive application</h1>
-      <span class="badge badge-emerald">{{ app.status.replace('_', ' ') }}</span>
+      <span class="badge badge-emerald">{{ app.status.replaceAll('_', ' ') }}</span>
       <span
         v-if="app.submitted_at"
         class="text-sm text-gray-400"
@@ -269,7 +249,7 @@ async function doTransition(to: string) {
             :disabled="!!transitioning"
             @click="doTransition(t)"
           >
-            {{ t.replace('_', ' ') }}
+            {{ t.replaceAll('_', ' ') }}
           </button>
         </template>
       </div>
@@ -471,6 +451,7 @@ async function doTransition(to: string) {
             <a
               :href="d.download_url"
               target="_blank"
+              rel="noopener noreferrer"
               class="font-medium"
             >{{ d.file_name }}</a>
             <span class="badge">{{ d.type }}</span>
@@ -657,7 +638,7 @@ async function doTransition(to: string) {
               Documents
             </dt>
             <dd class="col-span-2">
-              <span v-if="app.documents?.length">{{ app.documents.map((d: any) => d.file_name).join(', ') }}</span>
+              <span v-if="app.documents?.length">{{ app.documents.map(d => d.file_name).join(', ') }}</span>
               <span
                 v-else
                 class="text-red-600"

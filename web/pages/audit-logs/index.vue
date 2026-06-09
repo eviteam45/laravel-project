@@ -1,43 +1,33 @@
 <script setup lang="ts">
-import type { AuditLog, Paginated } from '~/types'
-
 definePageMeta({ roles: ['admin'] })
-
-const { user } = useAuth()
-const isAdmin = computed(() => user.value?.role === 'admin')
 
 const { list } = useAudit()
 
-const filters = reactive({ action: '', subject_type: '', page: 1 })
-
-const emptyPage: Paginated<AuditLog> = {
-  data: [],
-  links: {},
-  meta: { current_page: 1, last_page: 1, per_page: 0, total: 0 },
-}
+const filters = reactive<{ action: string, subject_type: string, cursor: string | null }>({
+  action: '',
+  subject_type: '',
+  cursor: null,
+})
 
 const { data, pending, error, refresh } = await useAsyncData(
   'audit-logs',
-  () => {
-    if (!isAdmin.value) return Promise.resolve(emptyPage)
-    return list({
-      action: filters.action || undefined,
-      subject_type: filters.subject_type || undefined,
-      page: filters.page,
-    })
-  },
-  { watch: [() => filters.action, () => filters.subject_type, () => filters.page] },
+  () => list({
+    action: filters.action || undefined,
+    subject_type: filters.subject_type || undefined,
+    cursor: filters.cursor || undefined,
+  }),
+  { watch: [() => filters.action, () => filters.subject_type, () => filters.cursor] },
 )
 
 const meta = computed(() => data.value?.meta)
 
-function setPage(p: number) {
-  filters.page = p
+function go(cursor: string | null) {
+  filters.cursor = cursor
 }
 </script>
 
 <template>
-  <section v-if="isAdmin">
+  <section>
     <h1 class="mb-5">
       Audit log
     </h1>
@@ -46,7 +36,7 @@ function setPage(p: number) {
       <select
         v-model="filters.action"
         class="input max-w-[12rem]"
-        @change="filters.page = 1"
+        @change="filters.cursor = null"
       >
         <option value="">
           All actions
@@ -67,15 +57,15 @@ function setPage(p: number) {
       <select
         v-model="filters.subject_type"
         class="input max-w-[14rem]"
-        @change="filters.page = 1"
+        @change="filters.cursor = null"
       >
         <option value="">
           All subjects
         </option>
-        <option value="Project">
+        <option value="project">
           Project
         </option>
-        <option value="IncentiveApplication">
+        <option value="application">
           Application
         </option>
       </select>
@@ -124,9 +114,9 @@ function setPage(p: number) {
                 {{ l.user?.name ?? '—' }}
               </td>
               <td class="px-4 py-3">
-                <span class="badge">{{ l.action.replace('_', ' ') }}</span>
+                <span class="badge">{{ l.action.replaceAll('_', ' ') }}</span>
               </td>
-              <td class="px-4 py-3 text-gray-600">
+              <td class="px-4 py-3 capitalize text-gray-600">
                 {{ l.subject_type }} #{{ l.subject_id }}
               </td>
               <td class="max-w-xs truncate px-4 py-3 text-xs text-gray-500">
@@ -146,30 +136,23 @@ function setPage(p: number) {
     </AsyncState>
 
     <div
-      v-if="meta && meta.last_page > 1"
+      v-if="meta && (meta.prev_cursor || meta.next_cursor)"
       class="mt-4 flex items-center justify-center gap-3 text-sm"
     >
       <button
         class="btn btn-ghost btn-sm"
-        :disabled="meta.current_page <= 1"
-        @click="setPage(meta.current_page - 1)"
+        :disabled="!meta.prev_cursor"
+        @click="go(meta.prev_cursor)"
       >
         ‹ Prev
       </button>
-      <span class="text-gray-500">Page {{ meta.current_page }} of {{ meta.last_page }}</span>
       <button
         class="btn btn-ghost btn-sm"
-        :disabled="meta.current_page >= meta.last_page"
-        @click="setPage(meta.current_page + 1)"
+        :disabled="!meta.next_cursor"
+        @click="go(meta.next_cursor)"
       >
         Next ›
       </button>
-    </div>
-  </section>
-
-  <section v-else>
-    <div class="card text-center text-gray-500">
-      Admins only.
     </div>
   </section>
 </template>

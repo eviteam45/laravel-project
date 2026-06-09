@@ -5,6 +5,7 @@ import { registerSchema } from '~/schemas/auth'
 
 const { register } = useAuth()
 const general = ref('')
+const done = ref(false)
 
 const { defineField, handleSubmit, errors, isSubmitting, setErrors } = useForm({
   validationSchema: toTypedSchema(registerSchema),
@@ -26,11 +27,10 @@ const onSubmit = handleSubmit(async (values) => {
   general.value = ''
   try {
     await register(values)
-    await navigateTo('/')
+    done.value = true
   }
-  catch (e: any) {
-    if (e?.data?.errors) setErrors(mapServerErrors(e.data.errors))
-    else general.value = e?.data?.message ?? 'Registration failed.'
+  catch (e) {
+    general.value = applyServerErrors(e, setErrors) ?? 'Registration failed.'
   }
 })
 </script>
@@ -52,7 +52,23 @@ const onSubmit = handleSubmit(async (values) => {
         {{ general }}
       </p>
 
+      <div
+        v-if="done"
+        class="space-y-4"
+      >
+        <p class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          Your account is ready. Please sign in to continue.
+        </p>
+        <NuxtLink
+          to="/login"
+          class="btn btn-primary block w-full text-center"
+        >
+          Go to login
+        </NuxtLink>
+      </div>
+
       <form
+        v-else
         class="space-y-4"
         @submit="onSubmit"
       >
@@ -178,14 +194,13 @@ const onSubmit = handleSubmit(async (values) => {
               for="password"
               class="label"
             >Password</label>
-            <input
+            <PasswordInput
               id="password"
               v-model="password"
               v-bind="passwordAttrs"
               class="input"
-              type="password"
               autocomplete="new-password"
-            >
+            />
             <p
               v-if="errors.password"
               class="field-error"
@@ -198,14 +213,13 @@ const onSubmit = handleSubmit(async (values) => {
               for="password_confirmation"
               class="label"
             >Confirm</label>
-            <input
+            <PasswordInput
               id="password_confirmation"
               v-model="passwordConfirmation"
               v-bind="passwordConfirmationAttrs"
               class="input"
-              type="password"
               autocomplete="new-password"
-            >
+            />
             <p
               v-if="errors.password_confirmation"
               class="field-error"

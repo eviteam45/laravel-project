@@ -19,9 +19,8 @@ const onSubmit = handleSubmit(async (values) => {
     await login(values)
     await navigateTo('/')
   }
-  catch (e: any) {
-    if (e?.data?.errors) setErrors(mapServerErrors(e.data.errors))
-    else general.value = e?.data?.message ?? 'Login failed.'
+  catch (e) {
+    general.value = applyServerErrors(e, setErrors) ?? 'Login failed.'
   }
 })
 </script>
@@ -72,14 +71,13 @@ const onSubmit = handleSubmit(async (values) => {
             for="password"
             class="label"
           >Password</label>
-          <input
+          <PasswordInput
             id="password"
             v-model="password"
             v-bind="passwordAttrs"
             class="input"
-            type="password"
             autocomplete="current-password"
-          >
+          />
           <p
             v-if="errors.password"
             class="field-error"
